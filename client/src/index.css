@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 100%;
+
+    --card: 0 0% 16%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 16%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 142.1 70.6% 45.3%;
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 0 0% 25%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 283 100% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 25%;
+    --input: 0 0% 25%;
+    --ring: 142.1 70.6% 45.3%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  body {
+    @apply font-sans antialiased bg-spotify-black text-foreground;
+  }
+}
+
+/* Spotify themed colors */
+@layer utilities {
+  .bg-spotify-black {
+    background-color: #121212;
+  }
+
+  .bg-spotify-light-black {
+    background-color: #181818;
+  }
+
+  .bg-spotify-gray {
+    background-color: #404040;
+  }
+
+  .text-spotify-light-gray {
+    color: #B3B3B3;
+  }
+
+  .bg-spotify-green {
+    background-color: #1DB954;
+  }
+
+  .text-spotify-green {
+    color: #1DB954;
+  }
+
+  .border-spotify-green {
+    border-color: #1DB954;
+  }
+
+  .border-spotify-gray {
+    border-color: #404040;
+  }
+
+  .text-error-red {
+    color: #FF4632;
+  }
+
+  .bg-error-red {
+    background-color: #FF4632;
+  }
+
+  .border-error-red {
+    border-color: #FF4632;
+  }
+}
+
+/* Typography */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-montserrat font-bold;
+  }
+
+  body {
+    @apply font-inter;
+  }
+}
+
+/* Set highlighting effect */
+.highlight-set {
+  animation: highlight-pulse 2s ease-in-out;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { 
+    background-color: #181818; 
+  }
+  50% { 
+    background-color: rgba(29, 185, 84, 0.2); 
+  }
+}
+
+/* Emoji button styling */
+.emoji-button {
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.emoji-button:hover {
+  transform: scale(1.1);
+}
+
+.emoji-button.selected {
+  transform: scale(1.15);
+  border-color: #1DB954 !important;
+}
+/* Font family declarations */
+@layer base {
+  :root {
+    --font-sans: Inter, system-ui, sans-serif;
+    --font-montserrat: Montserrat, system-ui, sans-serif;
+  }
+}
+

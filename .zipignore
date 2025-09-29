@@ -1,0 +1,151 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Testing
+coverage/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Mobile app builds
+apps/mobile/android/app/build/
+apps/mobile/ios/build/
+apps/mobile/ios/Pods/
+
+# Cache and logs
+.cache/
+.npm/
+logs/
+*.log
+.gradle/
+.idea/
+.vscode/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup and temp files
+*~
+*.swp
+*.swo
+*.bak
+backup/
+src-restore-*/
+replit_agent/
+
+# Large media files
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.zip
+*.tar.gz
+
+# Mobile specific
+android/
+ios/
+vendor/
+
+# Debug files
+*.map
+debug/
+
+# Exclude node_modules and package directories
+**/node_modules/
+packages/
+backup/
+replit_agent/
+attached_assets/
+soundoff-minimal-repro/
+
+# Exclude build and cache directories
+**/.cache/
+**/dist/
+**/build/
+**/.next/
+**/.nuxt/
+**/.output/
+
+# Exclude existing zip files
+*.zip
+
+# Exclude media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp3
+*.mp4
+*.mov
+*.avi
+*.webm
+*.ico
+*.svg
+
+# Exclude large binary files
+*.exe
+*.dll
+*.so
+*.dylib
+*.wasm
+
+# Exclude source control directories
+.git/
+.github/
+.gitlab/
+
+# Exclude mobile app directories that are non-essential
+apps/
+client/src-restore-ec46d66/
+
+# Exclude environment files
+.env
+.env.*
+!.env.example
+
+# Exclude logs and backups
+*.log
+*.bak
+
+# Exclude specific large directories
+fix/
+
+# Keep only essential directories
+# Keep client/src, client/app, client/public
+!client/src/
+!client/app/
+!client/public/
+
+# Keep server
+!server/
+
+# Keep shared
+!shared/
+
+# Keep core config files
+!package.json
+!tsconfig.json
+!tailwind.config.js
+!postcss.config.js
+!drizzle.config.ts
+!vite.config.ts
+!components.json
+
+# Keep documentation
+!README.md
+!DESIGN.md
+!CHANGES.md
+!KNOWN_ISSUES.txt 
