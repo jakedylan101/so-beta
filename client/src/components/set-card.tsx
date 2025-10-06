@@ -58,6 +58,8 @@ export function SetCard({
 }: SetCardProps) {
   const [open, setOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  
   
   // Fetch set details
   const { data: set, isLoading } = useQuery<ExtendedSet>({

@@ -779,6 +779,46 @@ router.get("/api/elo/rankings", requireAuth, async (req: AuthenticatedRequest, r
   }
 });
 
+router.get("/api/elo/test/rankings", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  
+  const sort = req.query.sort === 'asc' ? 'asc' : 'desc';
+
+  const { data, error } = await admin
+    .from('user_set_elo_details')
+    .select('*')
+    .eq('user_id', req.user?.id)
+    .order('elo_rating', { ascending: sort === 'asc' });
+
+  if (error) {
+    console.error("Error fetching test rankings:", error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json(data);
+})
+
+// API endpoint to get sets Timeline
+router.get("/api/sets/timeline", requireAuth, async (req: AuthenticatedRequest , res: Response) => {
+    const userId = req.user?.id;
+    const sort = req.query.sort === 'asc' ? 'asc' : 'desc';
+
+    const { data, error } = await admin
+      .from("user_logged_sets")
+      .select(", sets!inner()")
+      .eq("user_id", userId)
+      .order('updated_at', {ascending: sort == 'asc'})
+    
+    if(error) {
+      console.error('[Database Query Error] ' , error.message)
+      return
+    }
+
+    const normalizedRes = data.map(val => val?.updated_at)
+
+    res.json(data)
+     
+})
+
 // API endpoint to get count of sets for a user
 router.get("/api/sets/count", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -824,7 +864,8 @@ router.get("/api/sets/:id", requireAuth, async (req: AuthenticatedRequest, res: 
       .select("*")
       .eq("id", setId)
       .eq("logged_user_id", userId)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
       console.error("[/api/sets/:id] Supabase error fetching set:", error);
@@ -1368,6 +1409,19 @@ router.get("/api/soundcloud/search", async (req: Request, res: Response) => {
   }
 });
 
+router.get("/api/users/:id/stats", requireAuth, async(req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.id;
+  const { data, error } = await admin
+  .from('user_profile_stats')
+  .select('*')
+  .eq('user_id', userId)
+
+  if(error) {
+    res.status(500).json({error: "Sorry! We couldn't load the user stats right now."})
+  }
+
+  res.status(200).json(data?.[0] || {});
+})
 export function registerRoutes(app: express.Express): void {
   // Register routes
   app.use(router);

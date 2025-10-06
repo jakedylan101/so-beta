@@ -359,15 +359,15 @@ export function Profile({ openAuthModal }: ProfileProps) {
             <div className="w-full">
               <div className="grid grid-cols-3 gap-4 text-center text-white bg-[#1e2836] rounded-xl py-4 shadow-sm">
                 <div>
-                  <div className="text-2xl font-bold">{stats.sets_logged ?? 0}</div>
+                  <div className="text-2xl font-bold">{stats.totalSets ?? 0}</div>
                   <div className="text-xs text-gray-400">Sets Logged</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{stats.logged_sets_liked ?? 0}</div>
-                  <div className="text-xs text-gray-400">Sets Liked</div>
+                  <div className="text-2xl font-bold">{stats.likedSets ?? 0}</div>
+                  <div className="text-xs text-gray-400">Sets Liked</div> 
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{stats.friends_count ?? 0}</div>
+                  <div className="text-2xl font-bold">{stats.friends ?? 0}</div>
                   <div className="text-xs text-gray-400">Friends</div>
                 </div>
               </div>
@@ -386,11 +386,11 @@ export function Profile({ openAuthModal }: ProfileProps) {
           {/* Detailed Stats */}
           {stats && (
             <div className="grid grid-cols-2 gap-4 text-sm text-white bg-gray-900 rounded-lg p-3 mb-2 mt-3">
-              <div><strong>Sets Logged:</strong> {stats.sets_logged ?? 0}</div>
-              <div><strong>Liked (Logged):</strong> {stats.logged_sets_liked ?? 0}</div>
-              <div><strong>Liked (Discover):</strong> {stats.discovery_sets_liked ?? 0}</div>
-              <div><strong>Saved Sets:</strong> {stats.sets_saved ?? 0}</div>
-              <div><strong>Friends:</strong> {stats.friends_count ?? 0}</div>
+              <div><strong>Sets Logged:</strong> {stats.totalSets ?? 0}</div>
+              <div><strong>Liked (Logged):</strong> {stats.likedSets ?? 0}</div>
+              <div><strong>Liked (Discover):</strong> {stats.discoveryLikedSets ?? 0}</div>
+              <div><strong>Saved Sets:</strong> {stats.savedSets ?? 0}</div>
+              <div><strong>Friends:</strong> {stats.friends ?? 0}</div>
             </div>
           )}
           

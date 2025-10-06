@@ -81,8 +81,8 @@ export async function fetchRecommendedSets(): Promise<Set[]> {
     }
 
     const data = await res.json();
-    console.log(`Recommendations returned ${data.sets?.length || 0} sets`);
-    return data.sets ?? [];
+    console.log(`Recommendations returned ${data.length || 0} sets`);
+    return data ?? [];
   } catch (error) {
     console.error("Error fetching recommended sets:", error);
     return [];
@@ -92,6 +92,7 @@ export async function fetchRecommendedSets(): Promise<Set[]> {
 // Fetch trending sets
 export async function fetchTrendingSets(): Promise<Set[]> {
   let token = "";
+
   try {
     const { data: { session } } = await getSession();
     token = session?.access_token ?? "";
@@ -125,8 +126,8 @@ export async function fetchTrendingSets(): Promise<Set[]> {
     }
 
     const data = await res.json();
-    console.log(`Trending returned ${data.sets?.length || 0} sets`);
-    return data.sets ?? [];
+    console.log(`Trending returned ${data.length || 0} sets`);
+    return data ?? [];
   } catch (error) {
     console.error("Error fetching trending sets:", error);
     return [];

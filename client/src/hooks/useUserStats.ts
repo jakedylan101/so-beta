@@ -6,6 +6,8 @@ export type UserStats = {
   totalSets: number;
   likedSets: number;
   savedSets: number;
+  friends: number;
+  discoveryLikedSets: number;
   comparisonsMade: number;
   mostLoggedArtists?: { artist_name: string; count: number }[];
   mostVisitedVenues?: { location_name: string; count: number }[];
@@ -22,6 +24,8 @@ const DEFAULT_STATS: UserStats = {
   totalSets: 0,
   likedSets: 0,
   savedSets: 0,
+  friends: 0,
+  discoveryLikedSets: 0,
   comparisonsMade: 0,
   mostLoggedArtists: [],
   mostVisitedVenues: [],
@@ -44,16 +48,21 @@ export function useUserStats(userId: string) {
         // Clone the response to read the raw text
         const clonedRes = res.clone();
         const rawText = await clonedRes.text();
-        
+
+        console.log('🔴 DEBUG: Resources returned from API (/api/users/userId/stats):', rawText)
+
         try {
           // Parse the JSON manually to better handle errors
           const data = JSON.parse(rawText);
+          console.log('🔵 DEBUG: Parsed user stats data:', data);
           
           // Normalize keys from snake_case to camelCase if needed
           const normalizedData: UserStats = {
-            totalSets: data.total_sets ?? data.totalSets ?? 0,
-            likedSets: data.liked_sets ?? data.likedSets ?? data.totalLikedSets ?? 0,
-            savedSets: data.saved_sets ?? data.savedSets ?? data.totalSavedSets ?? 0,
+            totalSets: data.sets_logged ?? 0,
+            likedSets: data.logged_sets_liked ?? 0,
+            savedSets: data.sets_saved ?? 0,
+            friends: data.friends_count ?? 0,
+            discoveryLikedSets: data.discovery_sets_liked ?? 0,
             comparisonsMade: data.comparisons_made ?? data.comparisonsMade ?? data.totalComparisons ?? 0,
             mostLoggedArtists: data.mostLoggedArtists ?? [],
             mostVisitedVenues: data.mostVisitedVenues ?? [],

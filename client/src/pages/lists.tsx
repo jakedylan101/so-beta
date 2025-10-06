@@ -17,7 +17,7 @@ interface ListsProps {
 }
 
 interface RankedSet {
-  id: string;
+  set_id: string;
   artist_name: string;
   elo_score: number;
   user_rating: 'liked' | 'neutral' | 'disliked';
@@ -44,13 +44,13 @@ export function Lists({ openAuthModal }: ListsProps) {
   
   // Fetch ranked sets
   const { data: rankedSets = [], isLoading: rankingsLoading } = useQuery<RankedSet[]>({
-    queryKey: [`/api/elo/rankings?sort=${rankingSort}`],
+    queryKey: [`/api/elo/test/rankings?sort=${rankingSort}`],
     enabled: !!user && activeTab === "rankings",
   });
   
   // Fetch chronological sets
   const { data: chronologicalSets = [], isLoading: timelineLoading } = useQuery<RankedSet[]>({
-    queryKey: [`/api/sets?sort=${timelineSort}`],
+    queryKey: [`/api/sets/timeline?sort=${timelineSort}`],
     enabled: !!user && activeTab === "timeline",
   });
   
@@ -69,7 +69,7 @@ export function Lists({ openAuthModal }: ListsProps) {
     if (chronologicalSets.length > 0 && activeTab === "timeline") {
       console.log("Full chronological sets data:", chronologicalSets);
       console.table(chronologicalSets.map(set => ({
-        id: set.id,
+        id: set.set_id,
         listened_date: set.listened_date,
         event_date: set.event_date,
         artist_name: set.artist_name,
@@ -272,9 +272,9 @@ export function Lists({ openAuthModal }: ListsProps) {
                     : b.elo_score - a.elo_score  // best → worst
                   )
                   .map((set: RankedSet, index: number) => (
-                  <div key={set.id} id={`set-${set.id}`}>
+                  <div key={set.set_id} id={`set-${set.set_id}`}>
                     <SetCard 
-                      setId={set.id} 
+                      setId={set.set_id} 
                       ranking={index + 1} 
                       displayMode="ranking"
                         event_date={set.event_date}
@@ -338,9 +338,10 @@ export function Lists({ openAuthModal }: ListsProps) {
                       : new Date(dateA).getTime() - new Date(dateB).getTime();
                   })
                   .map((set: RankedSet) => (
-                  <div key={set.id} id={`set-${set.id}`}>
+
+                  <div key={set.set_id} id={`set-${set.set_id}`}>
                     <SetCard 
-                      setId={set.id}
+                      setId={set.set_id}
                       displayMode="timeline"
                         event_date={set.event_date}
                         listened_date={set.listened_date}
