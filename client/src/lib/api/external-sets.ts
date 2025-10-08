@@ -37,6 +37,7 @@ export async function searchExternalSets(query: string): Promise<Set[]> {
     }
     
     const data = await res.json();
+    console.log('🔴 [DEBUG] - Found Externel Setes : ', res)
     console.log(`Search returned ${data.sets?.length || 0} results`);
     return data.sets ?? [];
   } catch (err) {

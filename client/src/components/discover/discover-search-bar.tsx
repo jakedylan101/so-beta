@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -11,20 +11,29 @@ interface DiscoverSearchBarProps {
 
 export function DiscoverSearchBar({ onSearch, className }: DiscoverSearchBarProps) {
   const [query, setQuery] = useState("");
+  const onSearchRef = useRef(onSearch);
+
+  // Keep a ref to the latest onSearch so the debounce effect doesn't need to
+  // include the callback as a dependency (prevents re-triggering when parent re-renders)
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
-      if (query.trim()) {
-        onSearch(query.trim());
+      const q = query.trim();
+      if (q) {
+        onSearchRef.current(q);
       }
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [query, onSearch]);
+  }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && query.trim()) {
-      onSearch(query.trim());
+    if (e.key === "Enter") {
+      const q = query.trim();
+      if (q) onSearchRef.current(q);
     }
   };
 
@@ -39,7 +48,15 @@ export function DiscoverSearchBar({ onSearch, className }: DiscoverSearchBarProp
       <input
         type="text"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          setQuery(v);
+          // If the input was cleared, notify parent immediately so it can
+          // reset to the recommended/trending view without waiting for debounce.
+          if (v.trim() === "") {
+            onSearchRef.current("");
+          }
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Search SoundCloud, MixCloud, YouTube..."
         className="flex-grow bg-transparent focus:outline-none text-black placeholder-gray-400"

@@ -10,6 +10,27 @@ export async function GET(req: Request, { params }: { params: { userId: string }
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const { userId } = params;
 
+  // Read bearer token from incoming request and set it on the Supabase client
+  // so that server-side auth checks (getUser) work when the client sends
+  // an Authorization: Bearer <token> header.
+  const authHeader = req.headers.get('authorization') || '';
+  const incomingToken = authHeader.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : authHeader;
+
+  if (!incomingToken) {
+    console.error('[LikedSets] Missing Authorization token in request');
+    return NextResponse.json({ error: 'Unauthorized - missing token' }, { status: 401 });
+  }
+
+  // Attach token to supabase client for server-side auth checks
+  try {
+    // supabase.auth.setAuth is available to set the access token for the client
+    // during server-side handling.
+    // @ts-ignore
+    supabase.auth.setAuth(incomingToken);
+  } catch (err) {
+    console.warn('[LikedSets] Failed to set auth token on Supabase client', err);
+  }
+
   // Validate UUID
   const uuidSchema = z.string().uuid();
   const parseResult = uuidSchema.safeParse(userId);

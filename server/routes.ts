@@ -1,5 +1,5 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
+import { any, promise, z } from 'zod';
 import { AuthenticatedRequest, requireAuth } from './middleware';
 import { Pool } from 'pg';
 import { supabaseAdmin, getUserClient, admin } from './supabase';
@@ -7,6 +7,10 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import type { RatingEnum } from '@shared/types';
 import { isValidRating } from '@shared/types';
 import { spotifyService, soundcloudService } from './services';
+import { configDotenv } from 'dotenv';
+import { fetchYouTubeResults } from '@/lib/api/youtube';
+
+configDotenv()
 
 // Create a PostgreSQL pool since we don't have access to the existing one
 const pool = new Pool({
@@ -45,7 +49,7 @@ const ArtistSearchResultSchema = z.object({
 // Helper function to format dates to MM-DD-YY
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
-  
+
   try {
     // Expecting format YYYY-MM-DD or other parseable format
     const date = new Date(dateStr);
@@ -57,11 +61,11 @@ function formatDate(dateStr: string): string {
       }
       return dateStr;
     }
-    
+
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     const year = date.getFullYear().toString().slice(2);
-    
+
     return `${month}-${day}-${year}`;
   } catch (error) {
     console.error('Error formatting date:', error);
@@ -72,31 +76,31 @@ function formatDate(dateStr: string): string {
 // Retry mechanism for API calls
 async function retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<globalThis.Response> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await fetch(url, options);
       if (response.ok) return response;
-      
+
       const errorText = await response.text();
       lastError = new Error(`HTTP Error ${response.status}: ${errorText}`);
-      
+
       // Only retry for 5xx server errors or 429 rate limiting
       if (response.status < 500 && response.status !== 429) throw lastError;
-      
+
       // Exponential backoff
       const delay = Math.pow(2, attempt) * 500;
       await new Promise(resolve => setTimeout(resolve, delay));
     } catch (error) {
       lastError = error as Error;
       console.error(`Attempt ${attempt + 1} failed:`, error);
-      
+
       // Only retry on network errors, not HTTP errors (which are thrown above)
       const delay = Math.pow(2, attempt) * 500;
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
+
   throw lastError || new Error('Maximum retries reached');
 }
 
@@ -108,21 +112,21 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     // DEBUG: Check API key access
     const setlistApiKey = process.env.SETLIST_FM_API_KEY || process.env.SETLISTFM_API_KEY;
     console.log('Setlist.fm API key available:', setlistApiKey ? 'Yes' : 'No');
-    
+
     if (!setlistApiKey) {
       console.warn('⚠️ Setlist.fm API key missing');
     }
-    
+
     if (!process.env.SOUNDCLOUD_CLIENT_ID) {
       console.warn('⚠️ SoundCloud CLIENT_ID missing');
     }
-    
+
     if (!process.env.YOUTUBE_API_KEY) {
       console.warn('⚠️ YouTube API key missing');
     }
 
     if (!query || typeof query !== 'string') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Search query is required',
         message: 'Please provide a search term using the q or artist parameter'
       });
@@ -145,7 +149,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
         );
 
         const data = await setlistSearchResponse.json();
-        
+
         if (
           data &&
           typeof data === 'object' &&
@@ -172,7 +176,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
                 artistName: setlist.artist.name,
                 venueName: setlist.venue.name || "Unknown Venue",
                 date: formatDate(setlist.eventDate || ""),
-                eventName: 
+                eventName:
                   (setlist.tour && typeof setlist.tour === 'object' && setlist.tour.name) ||
                   (setlist.festival && typeof setlist.festival === 'object' && setlist.festival.name) ||
                   "",
@@ -203,7 +207,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
         );
 
         const data = await artistResponse.json();
-        
+
         if (data && typeof data === 'object' && 'artist' in data) {
           const artists = Array.isArray(data.artist) ? data.artist : [data.artist];
 
@@ -226,7 +230,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
                 );
 
                 const setlistData = await setlistsResponse.json();
-                
+
                 if (
                   setlistData &&
                   typeof setlistData === 'object' &&
@@ -248,7 +252,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
                         artistName: artist.name,
                         venueName: set.venue.name || "Unknown Venue",
                         date: formatDate(set.eventDate || ""),
-                        eventName: 
+                        eventName:
                           (set.tour && typeof set.tour === 'object' && set.tour.name) ||
                           (set.festival && typeof set.festival === 'object' && set.festival.name) ||
                           "",
@@ -283,7 +287,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     try {
       // TODO: Implement actual Spotify API integration
       console.log('Getting artist images for search results');
-      
+
       // Improved placeholder images with artist initials
       for (const artist of artistsWithRecentSets) {
         if (!artist.imageUrl) {
@@ -293,7 +297,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
             .slice(0, 2)
             .map(word => word.charAt(0).toUpperCase())
             .join('');
-            
+
           artist.imageUrl = `https://placehold.co/400x400/505050/ffffff?text=${encodeURIComponent(initials)}`;
         }
       }
@@ -337,7 +341,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     const specialArtists = ['Charli XCX', 'charli xcx', 'Lady Gaga', 'lady gaga', 'Green Day', 'green day'];
     if (query && specialArtists.some(a => query.toLowerCase().includes(a.toLowerCase()))) {
       console.log(`Adding special Empire Polo Fields results for ${query}`);
-      
+
       // Add special event data
       if (query.toLowerCase().includes('charli') || query.toLowerCase().includes('xcx')) {
         artistsWithRecentSets.push({
@@ -359,24 +363,24 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       console.log(`Searching Mixcloud for: ${query}`);
       try {
         const mixcloudResponse = await fetch(`https://api.mixcloud.com/search/?q=${encodeURIComponent(query)}&type=user&limit=15`);
-        
+
         if (mixcloudResponse.ok) {
           const data = await mixcloudResponse.json();
-          
+
           if (data && data.data && Array.isArray(data.data)) {
             console.log(`Found ${data.data.length} artists from Mixcloud`);
-            
+
             for (const user of data.data) {
               if (user && user.name) {
                 // Use today's date minus random days (0-60) to create varied past events
                 const randomDaysAgo = Math.floor(Math.random() * 60);
                 const pastDate = new Date();
                 pastDate.setDate(pastDate.getDate() - randomDaysAgo);
-                
+
                 const year = pastDate.getFullYear();
                 const month = String(pastDate.getMonth() + 1).padStart(2, '0');
                 const day = String(pastDate.getDate()).padStart(2, '0');
-                
+
                 artistsWithRecentSets.push({
                   id: `mixcloud-${user.username || user.name}`,
                   artistName: user.name,
@@ -413,11 +417,11 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       // This ensures users always see something in the dropdown
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 30); // One month ago
-      
+
       const year = pastDate.getFullYear();
       const month = String(pastDate.getMonth() + 1).padStart(2, '0');
       const day = String(pastDate.getDate()).padStart(2, '0');
-      
+
       artistsWithRecentSets.push({
         id: `generic-${query}`,
         artistName: query,
@@ -460,14 +464,14 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     }
 
     console.log(`Returning ${validatedResults.length} validated results`);
-    return res.json({ 
+    return res.json({
       results: validatedResults,
       query: query,
       totalResults: validatedResults.length
     });
   } catch (err) {
     console.error("Error searching artists:", err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: "Failed to search for artists",
       message: err instanceof Error ? err.message : "Unknown error"
     });
@@ -476,7 +480,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
 
 // Health check endpoint
 router.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
@@ -554,11 +558,11 @@ router.get("/api/elo/comparison-sets", requireAuth, async (req: AuthenticatedReq
     }
 
     // Filter out any malformed sets
-    const validSets = setsForComparison.filter(set => 
-      set && 
-      set.sets && 
-      set.sets.id && 
-      set.rating && 
+    const validSets = setsForComparison.filter(set =>
+      set &&
+      set.sets &&
+      set.sets.id &&
+      set.rating &&
       typeof set.rating === 'string'
     );
 
@@ -602,11 +606,11 @@ function calculateElo(winnerRating: number, loserRating: number, kFactor = 32): 
   // Calculate expected scores
   const expectedWinner = 1 / (1 + Math.pow(10, (loserRating - winnerRating) / 400));
   const expectedLoser = 1 / (1 + Math.pow(10, (winnerRating - loserRating) / 400));
-  
+
   // Calculate new ratings
   const winnerNewRating = Math.round(winnerRating + kFactor * (1 - expectedWinner));
   const loserNewRating = Math.round(loserRating + kFactor * (0 - expectedLoser));
-  
+
   return { winnerNewRating, loserNewRating };
 }
 
@@ -614,23 +618,23 @@ function calculateElo(winnerRating: number, loserRating: number, kFactor = 32): 
 router.post("/api/elo/submit-vote", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     const { winner_id, loser_id } = req.body;
-    
+
     if (!winner_id || !loser_id) {
       return res.status(400).json({ error: "Missing required parameters" });
     }
-    
+
     // Validate UUID shape quickly
     const uuidRe = /^[0-9a-f-]{36}$/i;
     if (![winner_id, loser_id].every((v) => uuidRe.test(v))) {
       return res.status(400).json({ error: "Invalid UUID format" });
     }
-    
+
     // Insert into comparisons table and let triggers handle the Elo updates
     const { error } = await admin
       .from('comparisons')
@@ -640,12 +644,12 @@ router.post("/api/elo/submit-vote", async (req: AuthenticatedRequest, res: Respo
         set_b_id: loser_id,
         winner_set_id: winner_id
       });
-    
+
     if (error) {
       console.error("Error recording comparison:", error);
       return res.status(500).json({ error: error.message });
     }
-    
+
     return res.json({ success: true });
   } catch (error) {
     console.error("Error processing vote:", error);
@@ -681,14 +685,14 @@ router.get("/api/elo/rankings", requireAuth, async (req: AuthenticatedRequest, r
   try {
     console.log('----------- ELO RANKINGS API CALL START -----------');
     const userId = req.user?.id;
-    
+
     if (!userId) {
       console.error("GET /api/elo/rankings failed: User ID missing after authentication");
       return res.status(500).json({ error: "Server error: User ID missing" });
     }
-    
+
     console.log(`Fetching Elo rankings for userId=${userId}`);
-    
+
     // Get all sets for the user from user_logged_sets with join to sets table
     const startTime = Date.now();
     const { data: sets, error } = await admin
@@ -713,23 +717,23 @@ router.get("/api/elo/rankings", requireAuth, async (req: AuthenticatedRequest, r
         )
       `)
       .eq('user_id', userId);
-    
+
     const endTime = Date.now();
     console.log(`[DEBUG] Supabase rankings query took ${endTime - startTime}ms`);
-    
+
     // Debugging - log the raw result counts and some sample data
     if (!sets || sets.length === 0) {
       console.log("[DEBUG] No ranked sets found");
       return res.json([]);
     }
-    
+
     console.log(`[DEBUG] Found ${sets.length} ranked sets`);
     if (sets.length > 0) {
       const sampleSets = (sets as unknown) as UserLoggedSet[];
-      console.log(`[DEBUG] First few sets:`, sampleSets.map(s => 
+      console.log(`[DEBUG] First few sets:`, sampleSets.map(s =>
         `ID: ${s.sets?.id}, Artist: ${s.sets?.artist_name}, Rating: ${s.rating}, Elo: ${s.sets?.elo_rating ?? 'unranked'}`).join('; '));
     }
-    
+
     // Format the sets for the rankings response
     const formattedSets = ((sets as unknown) as UserLoggedSet[])
       .filter((set): set is UserLoggedSet => set.sets !== null)
@@ -748,31 +752,31 @@ router.get("/api/elo/rankings", requireAuth, async (req: AuthenticatedRequest, r
         elo_score: set.sets.elo_rating || 1500,
         created_at: set.sets.created_at
       }));
-    
+
     // Sort the sets by ELO score (highest first) and then by creation date (newest first)
     formattedSets.sort((a, b) => {
       // First compare by ELO score (descending)
       if (b.elo_score !== a.elo_score) {
         return b.elo_score - a.elo_score;
       }
-      
+
       // If ELO scores are equal, compare by creation date (newest first)
       const dateA = new Date(a.created_at || '').getTime();
       const dateB = new Date(b.created_at || '').getTime();
       return dateB - dateA;
     });
-    
+
     console.log(`[DEBUG] Sorted ${formattedSets.length} ranked sets`);
-    
+
     // Log the first few sorted sets for debugging
     if (formattedSets.length > 0) {
-      console.log(`[DEBUG] First few sorted sets:`, formattedSets.slice(0, 5).map(s => 
+      console.log(`[DEBUG] First few sorted sets:`, formattedSets.slice(0, 5).map(s =>
         `ID: ${s.id}, Artist: ${s.artist_name}, Elo: ${s.elo_score}, Created: ${s.created_at}`).join('; '));
     }
-    
+
     console.log(`Returning ${formattedSets.length} ranked sets`);
     return res.json(formattedSets);
-    
+
   } catch (error) {
     console.error("Error in /api/elo/rankings:", error);
     return res.status(500).json({ error: "Server error" });
@@ -780,7 +784,7 @@ router.get("/api/elo/rankings", requireAuth, async (req: AuthenticatedRequest, r
 });
 
 router.get("/api/elo/test/rankings", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  
+
   const sort = req.query.sort === 'asc' ? 'asc' : 'desc';
 
   const { data, error } = await admin
@@ -798,32 +802,30 @@ router.get("/api/elo/test/rankings", requireAuth, async (req: AuthenticatedReque
 })
 
 // API endpoint to get sets Timeline
-router.get("/api/sets/timeline", requireAuth, async (req: AuthenticatedRequest , res: Response) => {
-    const userId = req.user?.id;
-    const sort = req.query.sort === 'asc' ? 'asc' : 'desc';
+router.get("/api/sets/timeline", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  const sort = req.query.sort === 'asc' ? 'asc' : 'desc';
 
-    const { data, error } = await admin
-      .from("user_logged_sets")
-      .select(", sets!inner()")
-      .eq("user_id", userId)
-      .order('updated_at', {ascending: sort == 'asc'})
-    
-    if(error) {
-      console.error('[Database Query Error] ' , error.message)
-      return
-    }
+  const { data, error } = await admin
+    .from("user_logged_sets")
+    .select(", sets!inner()")
+    .eq("user_id", userId)
+    .order('updated_at', { ascending: sort == 'asc' })
 
-    const normalizedRes = data.map(val => val?.updated_at)
+  if (error) {
+    console.error('[Database Query Error] ', error.message)
+    return
+  }
 
-    res.json(data)
-     
+  res.json(data)
+
 })
 
 // API endpoint to get count of sets for a user
 router.get("/api/sets/count", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       return res.status(401).json({ error: "User not authenticated" });
     }
@@ -833,12 +835,12 @@ router.get("/api/sets/count", requireAuth, async (req: AuthenticatedRequest, res
       .from('user_logged_sets')
       .select('id', { count: 'exact' })
       .eq('user_id', userId);
-    
+
     if (error) {
       console.error('Error getting set count:', error);
       return res.status(500).json({ error: error.message });
     }
-    
+
     const count = data ? data.length : 0;
     return res.status(200).json({ count });
   } catch (err) {
@@ -877,8 +879,8 @@ router.get("/api/sets/:id", requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(404).json({ error: "Set not found" });
     }
 
-    console.log("[/api/sets/:id] Returning set:", { 
-      id: data.id, 
+    console.log("[/api/sets/:id] Returning set:", {
+      id: data.id,
       user_rating: data.rating,
       logged_user_id: data.logged_user_id
     });
@@ -893,9 +895,9 @@ router.get("/api/sets/:id", requireAuth, async (req: AuthenticatedRequest, res: 
 // NEW helper – runs with service‑role key to find or create a canonical set
 async function findOrCreateSet(admin: SupabaseClient, body: any) {
   console.log('[findOrCreateSet] Starting with body:', JSON.stringify(body, null, 2));
-  
+
   const { artist_name, location_name, event_date, event_name } = body;
-  
+
   try {
     // Check if a set already exists with these core attributes
     const { data: existing, error: findError } = await admin
@@ -905,18 +907,18 @@ async function findOrCreateSet(admin: SupabaseClient, body: any) {
       .eq('location_name', location_name)
       .eq('event_date', event_date)
       .maybeSingle();
-    
+
     if (findError) {
       console.error('[findOrCreateSet] Error finding existing set:', findError);
       throw findError;
     }
-    
+
     // If exists, return the ID
     if (existing) {
       console.log(`[findOrCreateSet] Found existing set with ID: ${existing.id}`);
       return existing.id;
     }
-    
+
     // Otherwise create a new canonical set
     const { data, error } = await admin
       .from('sets')
@@ -929,12 +931,12 @@ async function findOrCreateSet(admin: SupabaseClient, body: any) {
       })
       .select()
       .single();
-    
+
     if (error) {
       console.error('[findOrCreateSet] Error creating new set:', error);
       throw error;
     }
-    
+
     console.log(`[findOrCreateSet] Created new set with ID: ${data.id}`);
     return data.id;
   } catch (error) {
@@ -956,22 +958,22 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
   try {
     console.log('----------- SET LOGGING API CALL START -----------');
     const userId = req.user?.id;
-    
+
     // Auth check is now handled by requireAuth middleware
     if (!userId) {
       console.error("POST /api/sets failed: User not authenticated");
-      return res.status(401).json({ 
-        error: "Unauthorized", 
-        details: "User authentication required for this endpoint" 
+      return res.status(401).json({
+        error: "Unauthorized",
+        details: "User authentication required for this endpoint"
       });
     }
 
     // Check if supabaseAdmin is available (server-side only)
     if (!supabaseAdmin) {
       console.error("POST /api/sets failed: Admin client unavailable");
-      return res.status(500).json({ 
-        error: "Server Error", 
-        details: "Database admin client is not available" 
+      return res.status(500).json({
+        error: "Server Error",
+        details: "Database admin client is not available"
       });
     }
 
@@ -983,11 +985,11 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
       userAgent: req.headers['user-agent'],
       contentType: req.headers['content-type'],
     });
-    
+
     // Additional logging
     console.log('[POST /api/sets] Authenticated user ID:', userId);
     console.log('[POST /api/sets] Payload:', JSON.stringify(req.body, null, 2));
-    
+
     // Validate request body
     const formData = req.body;
     if (!formData) {
@@ -997,11 +999,11 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
         details: "Request body is required"
       });
     }
-    
+
     // Validate required fields
     const requiredFields = ['artist_name', 'location_name', 'rating', 'listened_date'];
     const missingFields = requiredFields.filter(field => !formData[field]);
-    
+
     if (missingFields.length > 0) {
       console.error(`[DEBUG] Missing required fields: ${missingFields.join(', ')}`);
       return res.status(400).json({
@@ -1017,15 +1019,15 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
         details: `Invalid rating value: ${formData.rating}`
       });
     }
-    
+
     // Begin a transaction for atomicity
     try {
       // Start the transaction
       await supabaseAdmin!.rpc('pg_temp.begin');
-      
+
       // 1. Create or find the canonical set record using service role
       const setId = await findOrCreateSet(supabaseAdmin!, formData);
-      
+
       // 2. Insert the user-specific log with the original rating enum value
       const userClient = getUserClient(req.headers.authorization!.split(' ')[1]);
       const { error: insertError } = await userClient
@@ -1039,7 +1041,7 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
           media_urls: formData.media_urls || [],
           listened_date: formData.listened_date
         });
-      
+
       if (insertError) {
         console.error("[DEBUG] Error inserting into user_logged_sets:", insertError);
         await supabaseAdmin!.rpc('pg_temp.rollback');
@@ -1048,14 +1050,14 @@ router.post("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Res
           details: insertError.message
         });
       }
-      
+
       // Commit the transaction
       await supabaseAdmin!.rpc('pg_temp.commit');
-      
+
       // Log success
       console.log(`[DEBUG] Set created successfully: ${setId}`);
       console.log('----------- SET LOGGING API CALL END -----------');
-      
+
       return res.status(201).json({ set_id: setId });
     } catch (txError) {
       console.error("[DEBUG] Transaction error:", txError);
@@ -1079,21 +1081,21 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
   try {
     console.log('----------- GET ALL SETS API CALL START -----------');
     const userId = req.user?.id;
-    
+
     // Auth is now handled by requireAuth middleware
     if (!userId) {
       console.error("GET /api/sets failed: User ID missing after authentication");
       return res.status(500).json({ error: "Server error: User ID missing" });
     }
-    
+
     // Get query parameters
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
     const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
     const timeFilter = req.query.timeFilter as string || 'all_time';
-    
+
     console.log(`[DEBUG] Fetching sets for userId=${userId} with timeFilter=${timeFilter}`);
     console.log(`[DEBUG] Pagination: limit=${limit || 'none'}, offset=${offset || 0}`);
-    
+
     // Log authentication context
     console.log(`[DEBUG] Auth context for sets endpoint:`, {
       userId,
@@ -1107,7 +1109,7 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
       return res.status(401).json({ error: "Valid authorization header required" });
     }
     const jwt = authHeader.split(' ')[1];
-    
+
     // Start with basic query using join from user_logged_sets to sets
     let startTime = Date.now();
     let query = getUserClient(jwt)
@@ -1115,12 +1117,12 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
       .select('*, sets!inner(*)')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
-    
+
     // Apply time filtering if needed
     if (timeFilter && timeFilter !== 'all_time') {
       const now = new Date();
       let startDate = new Date();
-      
+
       if (timeFilter === 'last_week') {
         startDate.setDate(now.getDate() - 7);
       } else if (timeFilter === 'last_month') {
@@ -1128,28 +1130,28 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
       } else if (timeFilter === 'last_year') {
         startDate.setFullYear(now.getFullYear() - 1);
       }
-      
+
       // Format as ISO string and compare
       const startDateStr = startDate.toISOString();
       console.log(`[DEBUG] Filtering from ${startDateStr} to present`);
-      
+
       query = query.gte('created_at', startDateStr);
     }
-    
+
     // Apply pagination
     if (limit !== undefined) {
       query = query.limit(limit);
-      
+
       if (offset !== undefined) {
         query = query.range(offset, offset + limit - 1);
       }
     }
-    
+
     // Execute the query
     const { data: sets, error } = await query;
     const endTime = Date.now();
     console.log(`[DEBUG] Supabase query for sets took ${endTime - startTime}ms`);
-    
+
     if (error) {
       console.error("[DEBUG] Supabase error fetching sets:", {
         message: error.message,
@@ -1158,22 +1160,22 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
         code: error.code,
         fullError: JSON.stringify(error, null, 2)
       });
-      
+
       if (error.message.includes('Invalid API key')) {
-        return res.status(500).json({ 
-          error: "Database configuration error", 
+        return res.status(500).json({
+          error: "Database configuration error",
           details: "Invalid API key used to connect to Supabase"
         });
       } else if (error.code === '42501' || error.message.includes('policy')) {
-        return res.status(403).json({ 
-          error: "Permission denied", 
+        return res.status(403).json({
+          error: "Permission denied",
           details: "RLS policy violation. Service role key might be missing proper permissions."
         });
       } else {
         return res.status(500).json({ error: "Database error" });
       }
     }
-    
+
     // Transform the data to match the expected format
     const transformedSets = sets?.map(item => {
       const setData = item.sets;
@@ -1186,10 +1188,10 @@ router.get("/api/sets", requireAuth, async (req: AuthenticatedRequest, res: Resp
         listened_date: item.listened_date
       };
     }) || [];
-    
+
     console.log(`[DEBUG] Found ${transformedSets.length || 0} sets for userId=${userId}`);
     console.log('----------- GET ALL SETS API CALL END -----------');
-    
+
     return res.json(transformedSets);
   } catch (error) {
     console.error("[DEBUG] Exception in GET /api/sets:", error);
@@ -1228,27 +1230,27 @@ router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res
     console.log('----------- SAVE SET API CALL START -----------');
     const userId = req.user?.id;
     const { setId } = req.body;
-    
+
     // Auth is handled by requireAuth middleware, but double-check
     if (!userId) {
       console.error("POST /api/sets/save failed: User ID missing after authentication");
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     if (!setId) {
       console.error("POST /api/sets/save failed: Missing setId in request body");
       return res.status(400).json({ error: "Missing setId parameter" });
     }
-    
+
     console.log(`[DEBUG] Saving set for userId=${userId}, setId=${setId}`);
-    
+
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: "Valid authorization header required" });
     }
     const jwt = authHeader.split(' ')[1];
-    
+
     // Insert into user_sets_saved table using the user's client (enforces RLS)
     const { data, error } = await getUserClient(jwt)
       .from('user_sets_saved')
@@ -1259,15 +1261,15 @@ router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res
       }, {
         onConflict: 'user_id,set_id'
       });
-    
+
     if (error) {
       console.error("[DEBUG] Error saving set:", error);
       return res.status(500).json({ error: "Failed to save set" });
     }
-    
+
     console.log(`[DEBUG] Successfully saved set: userId=${userId}, setId=${setId}`);
     console.log('----------- SAVE SET API CALL END -----------');
-    
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("[DEBUG] Exception in POST /api/sets/save:", error);
@@ -1281,41 +1283,41 @@ router.delete("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, r
     console.log('----------- UNSAVE SET API CALL START -----------');
     const userId = req.user?.id;
     const { setId } = req.body;
-    
+
     if (!userId) {
       console.error("DELETE /api/sets/save failed: User ID missing after authentication");
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     if (!setId) {
       console.error("DELETE /api/sets/save failed: Missing setId in request body");
       return res.status(400).json({ error: "Missing setId parameter" });
     }
-    
+
     console.log(`[DEBUG] Unsaving set for userId=${userId}, setId=${setId}`);
-    
+
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: "Valid authorization header required" });
     }
     const jwt = authHeader.split(' ')[1];
-    
+
     // Delete from user_sets_saved table using the user's client (enforces RLS)
     const { error } = await getUserClient(jwt)
       .from('user_sets_saved')
       .delete()
       .eq('user_id', userId)
       .eq('set_id', setId);
-    
+
     if (error) {
       console.error("[DEBUG] Error unsaving set:", error);
       return res.status(500).json({ error: "Failed to unsave set" });
     }
-    
+
     console.log(`[DEBUG] Successfully unsaved set: userId=${userId}, setId=${setId}`);
     console.log('----------- UNSAVE SET API CALL END -----------');
-    
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("[DEBUG] Exception in DELETE /api/sets/save:", error);
@@ -1329,27 +1331,27 @@ router.post("/api/sets/like", requireAuth, async (req: AuthenticatedRequest, res
     console.log('----------- LIKE SET API CALL START -----------');
     const userId = req.user?.id;
     const { setId } = req.body;
-    
+
     // Auth is handled by requireAuth middleware, but double-check
     if (!userId) {
       console.error("POST /api/sets/like failed: User ID missing after authentication");
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     if (!setId) {
       console.error("POST /api/sets/like failed: Missing setId in request body");
       return res.status(400).json({ error: "Missing setId parameter" });
     }
-    
+
     console.log(`[DEBUG] Liking set for userId=${userId}, setId=${setId}`);
-    
+
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: "Valid authorization header required" });
     }
     const jwt = authHeader.split(' ')[1];
-    
+
     // Upsert into user_logged_sets table using the user's client (enforces RLS)
     // If a row already exists, update it to set liked=true and rating='liked'
     const { data, error } = await getUserClient(jwt)
@@ -1363,15 +1365,15 @@ router.post("/api/sets/like", requireAuth, async (req: AuthenticatedRequest, res
       }, {
         onConflict: 'user_id,set_id'
       });
-    
+
     if (error) {
       console.error("[DEBUG] Error liking set:", error);
       return res.status(500).json({ error: "Failed to like set" });
     }
-    
+
     console.log(`[DEBUG] Successfully liked set: userId=${userId}, setId=${setId}`);
     console.log('----------- LIKE SET API CALL END -----------');
-    
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("[DEBUG] Exception in POST /api/sets/like:", error);
@@ -1409,19 +1411,206 @@ router.get("/api/soundcloud/search", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/api/users/:id/stats", requireAuth, async(req: AuthenticatedRequest, res: Response) => {
+// General search Endpoint
+router.get("/api/search", async (req: Request, res: Response) => {
+  const query = (req.query.q as string)?.trim();
+
+  if (!query) {
+    return res.status(400).json({ error: "Query parameter 'q' is required" });
+  }
+
+  // Warn if expected env vars are missing
+  if (!process.env.YOUTUBE_API_KEY) console.warn('YOUTUBE_API_KEY not set');
+  if (!process.env.SOUNDCLOUD_CLIENT_ID) console.warn('SOUNDCLOUD_CLIENT_ID not set');
+  if (!process.env.SETLIST_FM_API_KEY && !process.env.SETLISTFM_API_KEY) console.warn('SETLIST_FM_API_KEY not set');
+
+  try {
+    const youtubeUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${process.env.YOUTUBE_API_KEY}`;
+    const soundcloudUrl = `https://api.soundcloud.com/tracks?q=${encodeURIComponent(query)}&client_id=${process.env.SOUNDCLOUD_CLIENT_ID}&limit=10`;
+    const setlistUrl = `https://api.setlist.fm/rest/1.0/search/setlists?artistName=${encodeURIComponent(query)}&p=1`;
+
+    // Prepare Spotify and Mixcloud calls
+    const spotifyInstance = spotifyService();
+    const mixcloudUrl = `https://api.mixcloud.com/search/?q=${encodeURIComponent(query)}&type=users&limit=10`;
+
+    const youtubePromise = fetch(youtubeUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`YouTube HTTP ${r.status}`)));
+    const soundcloudPromise = fetch(soundcloudUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`SoundCloud HTTP ${r.status}`)));
+    const setlistPromise = fetch(setlistUrl, { headers: { Accept: 'application/json', 'x-api-key': process.env.SETLIST_FM_API_KEY || process.env.SETLISTFM_API_KEY || '' } }).then(r => r.ok ? r.json() : Promise.reject(new Error(`Setlist HTTP ${r.status}`)));
+    const mixcloudPromise = fetch(mixcloudUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`Mixcloud HTTP ${r.status}`)));
+    const spotifyPromise = spotifyInstance ? spotifyInstance.search(query, ['artist'], 5) : Promise.resolve({ success: false, error: 'Spotify not configured' });
+
+    const [youtubeSettled, soundcloudSettled, setlistSettled, mixcloudSettled, spotifySettled] = await Promise.allSettled([
+      youtubePromise,
+      soundcloudPromise,
+      setlistPromise,
+      mixcloudPromise,
+      spotifyPromise
+    ]);
+
+  const youtubeRes = youtubeSettled.status === 'fulfilled' ? youtubeSettled.value : null;
+  const soundcloudRes = soundcloudSettled.status === 'fulfilled' ? soundcloudSettled.value : null;
+  const setListFmRes = setlistSettled.status === 'fulfilled' ? setlistSettled.value : null;
+  const mixcloudRes = mixcloudSettled.status === 'fulfilled' ? mixcloudSettled.value : null;
+  const spotifyRes = spotifySettled.status === 'fulfilled' ? spotifySettled.value : null;
+
+    const youtubeSets = youtubeRes?.items?.map((item: any) => ({
+      id: `yt--${item.id.videoId}`,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      thumbnail: item.snippet?.thumbnails?.medium?.url,
+      videoId: item.id.videoId,
+      source: 'youtube',
+    })) || [];
+
+    console.log(`Found ${youtubeRes?.items?.length || 0} Resources from Youtube`);
+    console.log(`Found ${Array.isArray(soundcloudRes) ? soundcloudRes.length : 0} Resources from SoundCloud`);
+    console.log(`Found ${mixcloudRes?.data?.length || 0} Resources from Mixcloud`);
+    console.log(`Found ${setListFmRes?.setlist?.length || 0} Resources from SetListFM`);
+    console.log(`Spotify available: ${spotifyInstance ? 'yes' : 'no'}`);
+
+    // Normalize Mixcloud results into a light list
+    const mixcloudItems = (mixcloudRes && Array.isArray(mixcloudRes.data)) ? mixcloudRes.data : [];
+
+    // Normalize Spotify artists if present
+    let spotifyArtists: any[] = [];
+    if (spotifyRes && typeof spotifyRes === 'object' && 'data' in spotifyRes && (spotifyRes as any).success) {
+      const d = (spotifyRes as any).data;
+      if (d?.artists?.items && Array.isArray(d.artists.items)) {
+        spotifyArtists = d.artists.items;
+      }
+    }
+
+    // Build unified sets array expected by the client: { id, title, artist_name, external_url }
+    const sets: any[] = [];
+
+    // YouTube results
+    if (Array.isArray(youtubeRes?.items)) {
+      for (const item of youtubeRes.items) {
+        const vid = item?.id?.videoId || item?.id;
+        if (!vid) continue;
+        sets.push({
+          id: `yt--${vid}`,
+          title: item.snippet?.title || `YouTube Video ${vid}`,
+          artist_name: item.snippet?.channelTitle || '',
+          external_url: `https://www.youtube.com/watch?v=${vid}`
+        });
+      }
+    }
+
+    // Spotify artists -> convert to simple set-like items
+    for (const a of spotifyArtists) {
+      sets.push({
+        id: `sp--${a.id}`,
+        title: `${a.name} — Spotify`,
+        artist_name: a.name,
+        external_url: `https://open.spotify.com/artist/${a.id}`
+      });
+    }
+
+    // SoundCloud results: support array or { collection: [...] }
+    if (soundcloudRes) {
+      const scItems = Array.isArray(soundcloudRes) ? soundcloudRes : (soundcloudRes.collection || []);
+      if (Array.isArray(scItems)) {
+        for (const t of scItems) {
+          const id = t?.id || t?.track_id;
+          const title = t?.title || t?.name || '';
+          const artist = t?.user?.username || t?.user?.name || '';
+          const url = t?.permalink_url || t?.permalink || (t?.uri ? String(t.uri) : '');
+          if (!id || !title) continue;
+          sets.push({ id: `sc--${id}`, title, artist_name: artist, external_url: url });
+        }
+      }
+    }
+
+    // Mixcloud results
+    if (Array.isArray(mixcloudItems)) {
+      for (const u of mixcloudItems) {
+        const id = u.username || u.slug || u.key || u.id;
+        const name = u.name || u.username || u.slug || '';
+        const url = u.url || u.permalink || `https://mixcloud.com/${u.username || u.slug}`;
+        if (!id) continue;
+        sets.push({ id: `mc--${id}`, title: name, artist_name: name, external_url: url });
+      }
+    }
+
+    // Setlist.fm results
+    if (setListFmRes && Array.isArray(setListFmRes.setlist)) {
+      for (const s of setListFmRes.setlist) {
+        const artist = s?.artist?.name || '';
+        const venue = s?.venue?.name || '';
+        const dateStr = s?.eventDate || '';
+        const id = s?.id || s?.artist?.mbid || `${artist}-${venue}-${dateStr}`;
+        const title = artist && venue ? `${artist} @ ${venue}` : (artist || venue || 'Setlist');
+        // No canonical external url for setlist entries - leave blank or point to setlist.fm search
+        const external_url = s?.url || '';
+        sets.push({ id: `sl--${id}`, title, artist_name: artist, external_url });
+      }
+    }
+
+    // Deduplicate by id keeping first occurrence
+    const unique = new Map<string, any>();
+    for (const item of sets) {
+      if (!item || !item.id) continue;
+      if (!unique.has(item.id)) unique.set(item.id, item);
+    }
+
+    const finalSets = Array.from(unique.values()).slice(0, 100); // limit to reasonable size
+
+    return res.json({ total: finalSets.length, sets: finalSets });
+  } catch (err) {
+    console.error('[GET /api/search] Error performing searches:', err);
+    return res.status(500).json({ error: 'Search failed', details: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Get User Stats
+router.get("/api/users/:id/stats", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.params.id;
   const { data, error } = await admin
-  .from('user_profile_stats')
-  .select('*')
-  .eq('user_id', userId)
+    .from('user_profile_stats')
+    .select('*')
+    .eq('user_id', userId)
 
-  if(error) {
-    res.status(500).json({error: "Sorry! We couldn't load the user stats right now."})
+  if (error) {
+    res.status(500).json({ error: "Sorry! We couldn't load the user stats right now." })
   }
 
   res.status(200).json(data?.[0] || {});
 })
+
+// Get Liked Sets
+router.get('/api/users/:userId/liked', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+  const { data, error } = await admin
+  .from('user_logged_sets')
+  .select('*, sets(*)')
+  .eq('user_id', userId)
+  .eq('rating', 'liked')
+
+  const parsedData = data?.map((item: any) => (
+    {
+      id: item.id,
+      artist_name: item.sets?.artist_name,
+      event_name: item.sets?.event_name || '',
+      event_date: item.sets?.event_date,
+      image_url: item.media_urls || '',
+      saved_at: item.inserted_at
+    }
+  ))
+
+  if(error) {
+    res.status(500).json({'Database Error: ': error})
+  }
+  res.json({parsedData})
+})
+
+// Get Saved Sets
+router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  res.json('API Available - Not implemented yet')
+})
+
+
+
 export function registerRoutes(app: express.Express): void {
   // Register routes
   app.use(router);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useDeferredValue } from "react";
 import { DiscoverSearchBar } from "../components/discover/discover-search-bar";
 import { DiscoverRecommendedSection } from "../components/discover/discover-recommended-section";
 import { DiscoverTrendingSection } from "../components/discover/discover-trending-section";
@@ -12,6 +12,9 @@ export default function DiscoverPage() {
   const [recommended, setRecommended] = useState<Set[]>([]);
   const [trending, setTrending] = useState<Set[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const deferredQuery = useDeferredValue(searchQuery);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -32,30 +35,59 @@ export default function DiscoverPage() {
     fetchInitialData();
   }, []);
 
-  const handleSearch = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    try {
-      const results = await searchExternalSets(query);
-      setSearchResults(results);
-    } catch (error) {
-      console.error("Search error:", error);
-    }
+  // Now the search bar sets `searchQuery`. We use a deferred value so the
+  // UI keeps showing previous results while the new query is being deferred.
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
   };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const doSearch = async () => {
+      const q = (deferredQuery || "").trim();
+      if (!q) {
+        if (mounted) setSearchResults(null);
+        return;
+      }
+
+      try {
+        setSearching(true);
+        const results = await searchExternalSets(q);
+        if (!mounted) return;
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Search error:", error);
+      } finally {
+        if (mounted) setSearching(false);
+      }
+    };
+
+    // Trigger search when deferred value changes
+    doSearch();
+
+    return () => {
+      mounted = false;
+    };
+  }, [deferredQuery]);
 
   return (
     <div className="bg-black min-h-screen text-white px-4 py-6 max-w-2xl mx-auto">
       <h1 className="text-3xl font-bold mb-4">Discover</h1>
       <DiscoverSearchBar onSearch={handleSearch} />
 
-      {searchResults ? (
+      {searchQuery.trim() ? (
         <>
           <h2 className="text-xl font-semibold mt-6 mb-2">
-            Search Results ({searchResults.length})
+            Search Results ({searchResults?.length ?? 0})
+            {searching && (
+              <span className="ml-3 text-sm text-gray-300">Searching...</span>
+            )}
+            {!searching && searchQuery !== deferredQuery && (
+              <span className="ml-3 text-sm text-gray-500">(updating...)</span>
+            )}
           </h2>
-          {searchResults.length > 0 ? (
+          {searchResults && searchResults.length > 0 ? (
             <div className="space-y-4">
               {searchResults.map((set) => (
                 <div key={set.id} className="bg-neutral-900 rounded p-4 border border-neutral-800">

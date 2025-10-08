@@ -9,15 +9,15 @@ import { queryClient } from '@/lib/queryClient';
 import { fetchWithAuth } from '@/lib/api/fetchWithAuth';
 import { Input } from '@/components/ui/input';
 import { useMutation } from '@tanstack/react-query';
-import { 
-  ChevronRightIcon, 
-  Settings, 
-  Bell, 
-  UserRound, 
-  HelpCircle, 
-  LogOut, 
-  Music, 
-  Map, 
+import {
+  ChevronRightIcon,
+  Settings,
+  Bell,
+  UserRound,
+  HelpCircle,
+  LogOut,
+  Music,
+  Map,
   Tag,
   Bookmark,
   CalendarClock,
@@ -68,7 +68,8 @@ interface SavedSet {
   location_name: string;
   event_name?: string;
   event_date: string;
-  image_url?: string;
+  // some API responses return an array for image_url (e.g. [] or [url])
+  image_url?: string | string[];
   saved_at: string;
 }
 
@@ -96,36 +97,38 @@ export function Profile({ openAuthModal }: ProfileProps) {
   const [friendUsername, setFriendUsername] = useState('');
   const [addByEmail, setAddByEmail] = useState(true);
   const [, setLocation] = useLocation();
-  
+
   // Use our new hooks
   const { data: stats, isLoading: isLoadingStats } = useUserStats(user?.id || '');
   const { data: likedSets = [], isLoading: isLoadingLikedSets } = useUserLikedSets(user?.id || '');
   const { data: savedSets = [], isLoading: isLoadingSavedSets } = useUserSavedSets(user?.id || '');
-  
+
+  console.log('🔴 [Debug] Found Liked Sets: ', likedSets)
+
   // Fetch liked artists
   const { data: likedArtists = [], isLoading: isLoadingLikedArtists } = useQuery<LikedItem[]>({
     queryKey: [`/api/users/${user?.id}/liked-artists`],
     enabled: !!user?.id,
   });
-  
+
   // Fetch liked venues
   const { data: likedVenues = [], isLoading: isLoadingLikedVenues } = useQuery<LikedItem[]>({
     queryKey: [`/api/users/${user?.id}/liked-venues`],
     enabled: !!user?.id,
   });
-  
+
   // Fetch liked genres
   const { data: likedGenres = [], isLoading: isLoadingLikedGenres } = useQuery<LikedItem[]>({
     queryKey: [`/api/users/${user?.id}/liked-genres`],
     enabled: !!user?.id,
   });
-  
+
   // Fetch friends
   const { data: friends = [], isLoading: isLoadingFriends } = useQuery<Friend[]>({
     queryKey: [`/api/users/${user?.id}/friends`],
     enabled: !!user?.id,
   });
-  
+
   // Add friend mutation
   const addFriendMutation = useMutation({
     mutationFn: async (friendData: { email?: string; username?: string }) => {
@@ -156,7 +159,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       });
     }
   });
-  
+
   // Accept friend request mutation
   const acceptFriendMutation = useMutation({
     mutationFn: async (friendId: string) => {
@@ -185,7 +188,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       });
     }
   });
-  
+
   // Remove friend mutation
   const removeFriendMutation = useMutation({
     mutationFn: async (friendId: string) => {
@@ -213,7 +216,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       });
     }
   });
-  
+
   // Handle adding a friend
   const handleAddFriend = () => {
     if (addByEmail && !friendEmail) {
@@ -224,7 +227,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       });
       return;
     }
-    
+
     if (!addByEmail && !friendUsername) {
       toast({
         title: "Username required",
@@ -233,12 +236,12 @@ export function Profile({ openAuthModal }: ProfileProps) {
       });
       return;
     }
-    
+
     addFriendMutation.mutate(
       addByEmail ? { email: friendEmail } : { username: friendUsername }
     );
   };
-  
+
   const handleLogout = () => {
     signOut(undefined, {
       onSuccess: () => {
@@ -256,7 +259,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       }
     });
   };
-  
+
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center h-[80vh]">
@@ -278,19 +281,24 @@ export function Profile({ openAuthModal }: ProfileProps) {
       </div>
     );
   }
-  
+
   // Helper function to render a set card
   const renderSetCard = (set: SavedSet) => (
     <Card key={set.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
       <div className="flex">
         <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-blue-400 flex-shrink-0">
-          {set.image_url ? (
-            <img src={set.image_url} alt={set.artist_name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="flex items-center justify-center h-full w-full">
-              <Music className="h-8 w-8 text-white/70" />
-            </div>
-          )}
+          {(() => {
+            const img = Array.isArray(set.image_url)
+              ? set.image_url[0]
+              : set.image_url;
+            return img ? (
+              <img src={img} alt={set.artist_name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="flex items-center justify-center h-full w-full">
+                <Music className="h-8 w-8 text-white/70" />
+              </div>
+            );
+          })()}
         </div>
         <div className="p-3 flex-grow">
           <h4 className="font-semibold text-sm line-clamp-1">{set.artist_name}</h4>
@@ -305,7 +313,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       </div>
     </Card>
   );
-  
+
   // Helper function to render an item card (artists, genres, venues)
   const renderItemCard = (item: LikedItem) => (
     <Card key={item.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
@@ -330,7 +338,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
       </div>
     </Card>
   );
-  
+
   return (
     <>
       <div className="text-center mb-6">
@@ -346,7 +354,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
         <h2 className="text-xl font-bold">{user.username || 'User'}</h2>
         <p className="text-sm text-gray-400">{user.email}</p>
       </div>
-      
+
       {/* User Stats Card */}
       <Card className="bg-gray-800 border-none rounded-lg mb-6">
         <CardContent className="p-4">
@@ -354,7 +362,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             <Music2 className="mr-2 h-5 w-5" />
             Your Stats
           </h3>
-          
+
           {stats ? (
             <div className="w-full">
               <div className="grid grid-cols-3 gap-4 text-center text-white bg-[#1e2836] rounded-xl py-4 shadow-sm">
@@ -364,7 +372,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold">{stats.likedSets ?? 0}</div>
-                  <div className="text-xs text-gray-400">Sets Liked</div> 
+                  <div className="text-xs text-gray-400">Sets Liked</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold">{stats.friends ?? 0}</div>
@@ -382,7 +390,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
               </div>
             </div>
           )}
-          
+
           {/* Detailed Stats */}
           {stats && (
             <div className="grid grid-cols-2 gap-4 text-sm text-white bg-gray-900 rounded-lg p-3 mb-2 mt-3">
@@ -393,7 +401,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
               <div><strong>Friends:</strong> {stats.friends ?? 0}</div>
             </div>
           )}
-          
+
           {/* Global Ranking */}
           {stats?.globalRanking && (
             <div className="bg-gray-900 rounded-lg p-3 text-center mb-2">
@@ -410,7 +418,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
           )}
         </CardContent>
       </Card>
-      
+
       {/* Profile Content Tabs */}
       <Tabs defaultValue={activeTab} className="mb-6">
         <TabsList className="grid grid-cols-7 mb-4">
@@ -443,7 +451,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             <span className="hidden sm:inline">Friends</span>
           </TabsTrigger>
         </TabsList>
-        
+
         {/* Saved Sets Tab */}
         <TabsContent value="saved" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -457,7 +465,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4">
-              <ScrollArea className="h-[400px] pr-4">
+              <ScrollArea className="h-[400px] pr-4">              
                 {isLoadingSavedSets ? (
                   <>
                     {[1, 2, 3].map(i => (
@@ -466,8 +474,8 @@ export function Profile({ openAuthModal }: ProfileProps) {
                       </div>
                     ))}
                   </>
-                ) : savedSets && savedSets.length > 0 ? (
-                  savedSets.map((set: SavedSet) => renderSetCard(set))
+                ) : savedSets && savedSets?.length > 0 ? (
+                  savedSets?.map((set: SavedSet) => renderSetCard(set))
                 ) : (
                   <div className="text-center p-6">
                     <Bookmark className="h-12 w-12 mx-auto text-gray-600 mb-2" />
@@ -484,7 +492,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Liked Sets Tab */}
         <TabsContent value="liked" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -507,8 +515,8 @@ export function Profile({ openAuthModal }: ProfileProps) {
                       </div>
                     ))}
                   </>
-                ) : likedSets && likedSets.length > 0 ? (
-                  likedSets.map((set: SavedSet) => renderSetCard(set))
+                ) : likedSets && likedSets?.parsedData?.length > 0 ? (
+                  likedSets?.parsedData?.map((set: SavedSet) => renderSetCard(set))
                 ) : (
                   <div className="text-center p-6">
                     <ThumbsUp className="h-12 w-12 mx-auto text-gray-600 mb-2" />
@@ -525,7 +533,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Events Tab */}
         <TabsContent value="events" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -546,14 +554,14 @@ export function Profile({ openAuthModal }: ProfileProps) {
                 <CalendarClock className="h-16 w-16 mx-auto text-gray-600 mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Events Integration Coming Soon</h3>
                 <p className="text-gray-400 max-w-md mx-auto mb-4">
-                  We're working on bringing you personalized live music events 
+                  We're working on bringing you personalized live music events
                   from your favorite artists and venues. Check back soon!
                 </p>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Artists Tab */}
         <TabsContent value="artists" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -591,7 +599,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Genres Tab */}
         <TabsContent value="genres" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -614,9 +622,9 @@ export function Profile({ openAuthModal }: ProfileProps) {
               ) : likedGenres && likedGenres.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {likedGenres.map(genre => (
-                    <Badge 
-                      key={genre.id} 
-                      variant="secondary" 
+                    <Badge
+                      key={genre.id}
+                      variant="secondary"
                       className="px-3 py-1 bg-amber-600/30 text-amber-300 hover:bg-amber-600/50"
                     >
                       {genre.name}
@@ -635,7 +643,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Venues Tab */}
         <TabsContent value="venues" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -673,7 +681,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Friends Tab */}
         <TabsContent value="friends" className="mt-0">
           <Card className="bg-gray-800 border-none">
@@ -708,7 +716,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                     By Username
                   </Button>
                 </div>
-                
+
                 {addByEmail ? (
                   <div className="mb-3">
                     <Input
@@ -730,8 +738,8 @@ export function Profile({ openAuthModal }: ProfileProps) {
                     />
                   </div>
                 )}
-                
-                <Button 
+
+                <Button
                   onClick={handleAddFriend}
                   disabled={addFriendMutation.isPending}
                   className="w-full bg-spotify-green text-black"
@@ -752,11 +760,11 @@ export function Profile({ openAuthModal }: ProfileProps) {
                   )}
                 </Button>
               </div>
-              
+
               {/* Friends List */}
               <ScrollArea className="h-[300px] pr-4">
                 <h4 className="text-sm font-medium mb-3">Your Friends</h4>
-                
+
                 {isLoadingFriends ? (
                   <>
                     {[1, 2, 3].map(i => (
@@ -801,7 +809,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                           ))}
                       </div>
                     )}
-                    
+
                     {/* Sent Friend Requests */}
                     {friends.filter(friend => friend.status === 'requested').length > 0 && (
                       <div className="mb-4">
@@ -830,7 +838,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                           ))}
                       </div>
                     )}
-                    
+
                     {/* Accepted Friends */}
                     {friends.filter(friend => friend.status === 'accepted').length > 0 && (
                       <div>
@@ -880,7 +888,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {/* Account Settings */}
       <Card className="bg-gray-800 border-none rounded-lg mb-6">
         <CardHeader className="pb-0">
@@ -890,7 +898,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <Button 
+          <Button
             variant="outline"
             onClick={handleLogout}
             className="w-full bg-transparent border border-red-500 text-red-500 rounded-lg py-6 hover:bg-red-900/10 transition-all"
