@@ -859,6 +859,13 @@ router.get("/api/sets/:id", requireAuth, async (req: AuthenticatedRequest, res: 
       return res.status(400).json({ error: "Missing user ID or set ID" });
     }
 
+    // Quick UUID shape validation to avoid Postgres errors when non-UUID values are passed
+    const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    if (!isUUID(setId)) {
+      console.warn('[GET /api/sets/:id] Invalid UUID provided for setId:', setId);
+      return res.status(400).json({ error: 'Invalid set ID format' });
+    }
+
     console.log(`[/api/sets/:id] Fetching set details:`, { setId, userId });
 
     const { data, error } = await admin
@@ -1244,6 +1251,13 @@ router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res
 
     console.log(`[DEBUG] Saving set for userId=${userId}, setId=${setId}`);
 
+    // Validate UUID format for setId to avoid DB errors
+    // const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    // if (!isUUID(setId)) {
+    //   console.warn('[POST /api/sets/save] Invalid UUID provided for setId:', setId);
+    //   return res.status(400).json({ error: 'Invalid set ID format' });
+    // }
+
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -1296,6 +1310,13 @@ router.delete("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, r
 
     console.log(`[DEBUG] Unsaving set for userId=${userId}, setId=${setId}`);
 
+    // Validate UUID format for setId
+    const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    if (!isUUID(setId)) {
+      console.warn('[DELETE /api/sets/save] Invalid UUID provided for setId:', setId);
+      return res.status(400).json({ error: 'Invalid set ID format' });
+    }
+
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -1344,6 +1365,13 @@ router.post("/api/sets/like", requireAuth, async (req: AuthenticatedRequest, res
     }
 
     console.log(`[DEBUG] Liking set for userId=${userId}, setId=${setId}`);
+
+    // Validate UUID format for setId
+    const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    if (!isUUID(setId)) {
+      console.warn('[POST /api/sets/like] Invalid UUID provided for setId:', setId);
+      return res.status(400).json({ error: 'Invalid set ID format' });
+    }
 
     // Get the JWT token from the request headers
     const authHeader = req.headers.authorization;
@@ -1608,8 +1636,6 @@ router.get('/api/users/:userId/liked', requireAuth, async (req: AuthenticatedReq
 router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.json('API Available - Not implemented yet')
 })
-
-
 
 export function registerRoutes(app: express.Express): void {
   // Register routes

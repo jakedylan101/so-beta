@@ -101,6 +101,9 @@ export default function DiscoverPage() {
                   >
                     Listen Now
                   </a>
+                  <button>
+                    Save Now
+                  </button>
                 </div>
               ))}
             </div>

@@ -2,10 +2,21 @@
 
 import React from "react";
 import type { Set } from "../../types/set";
+import { fetchWithAuth } from "@/lib/api/fetchWithAuth";
 
 interface DiscoverRecommendedSectionProps {
   sets: Set[];
   loading: boolean;
+}
+
+function saveSet(setId: string) {
+  fetchWithAuth(`/api/sets/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ setId }),
+  });
 }
 
 export function DiscoverRecommendedSection({
@@ -36,6 +47,9 @@ export function DiscoverRecommendedSection({
               >
                 Listen Now
               </a>
+              <button className=" py-1 px-2 rounded-lg text-gray-100 hover:text-gray-50 bg-gray-800 ms-2 hover:bg-gray-900" onClick={() => saveSet(set.id)}>
+                Save Now
+              </button>
             </div>
           ))}
         </div>
