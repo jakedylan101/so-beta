@@ -9,6 +9,7 @@ import { isValidRating } from '@shared/types';
 import { spotifyService, soundcloudService } from './services';
 import { configDotenv } from 'dotenv';
 import { fetchYouTubeResults } from '@/lib/api/youtube';
+import { error } from 'console';
 
 configDotenv()
 
@@ -1475,11 +1476,11 @@ router.get("/api/search", async (req: Request, res: Response) => {
       spotifyPromise
     ]);
 
-  const youtubeRes = youtubeSettled.status === 'fulfilled' ? youtubeSettled.value : null;
-  const soundcloudRes = soundcloudSettled.status === 'fulfilled' ? soundcloudSettled.value : null;
-  const setListFmRes = setlistSettled.status === 'fulfilled' ? setlistSettled.value : null;
-  const mixcloudRes = mixcloudSettled.status === 'fulfilled' ? mixcloudSettled.value : null;
-  const spotifyRes = spotifySettled.status === 'fulfilled' ? spotifySettled.value : null;
+    const youtubeRes = youtubeSettled.status === 'fulfilled' ? youtubeSettled.value : null;
+    const soundcloudRes = soundcloudSettled.status === 'fulfilled' ? soundcloudSettled.value : null;
+    const setListFmRes = setlistSettled.status === 'fulfilled' ? setlistSettled.value : null;
+    const mixcloudRes = mixcloudSettled.status === 'fulfilled' ? mixcloudSettled.value : null;
+    const spotifyRes = spotifySettled.status === 'fulfilled' ? spotifySettled.value : null;
 
     const youtubeSets = youtubeRes?.items?.map((item: any) => ({
       id: `yt--${item.id.videoId}`,
@@ -1610,10 +1611,10 @@ router.get("/api/users/:id/stats", requireAuth, async (req: AuthenticatedRequest
 router.get('/api/users/:userId/liked', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.params.userId;
   const { data, error } = await admin
-  .from('user_logged_sets')
-  .select('*, sets(*)')
-  .eq('user_id', userId)
-  .eq('rating', 'liked')
+    .from('user_logged_sets')
+    .select('*, sets(*)')
+    .eq('user_id', userId)
+    .eq('rating', 'liked')
 
   const parsedData = data?.map((item: any) => (
     {
@@ -1626,16 +1627,322 @@ router.get('/api/users/:userId/liked', requireAuth, async (req: AuthenticatedReq
     }
   ))
 
-  if(error) {
-    res.status(500).json({'Database Error: ': error})
+  if (error) {
+    res.status(500).json({ 'Database Error: ': error })
   }
-  res.json({parsedData})
+  res.json({ parsedData })
 })
 
 // Get Saved Sets
 router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   res.json('API Available - Not implemented yet')
 })
+
+// Get User's Selected Generes
+router.get('/api/users/gener', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId: string | undefined = req?.user?.id as string | undefined;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User id is not available for this request' });
+  }
+
+  try {
+    const { data, error } = await admin
+      .from('profiles')
+      .select('preferred_genres')
+      .eq('id', userId)
+      .limit(1);
+
+    if (error) {
+      console.error('[GET /api/users/gener] Database error:', error);
+      return res.status(500).json({ error: `[Database Error]: ${error?.message}` });
+    }
+
+    const raw = data && data[0] ? data[0].preferred_genres : null;
+
+    // Normalize stored shapes into array of { id, name }
+    // Acceptable stored shapes:
+    // - null/undefined => []
+    // - array of strings => ['Rock', 'Pop']
+    // - array of objects => [{ id, name }, ...]
+    // - comma-separated string => 'Rock,Pop'
+
+    let genres: Array<{ id: string; name: string }> = [];
+
+    const slugify = (s: string) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    if (!raw) {
+      genres = [];
+    } else if (Array.isArray(raw)) {
+      // Could be array of strings or objects
+      genres = raw.map((g: any) => {
+        if (typeof g === 'string') {
+          return { id: slugify(g), name: g };
+        }
+        if (g && typeof g === 'object') {
+          const name = g.name || g.label || String(g);
+          const id = g.id || slugify(name);
+          return { id, name };
+        }
+        return null;
+      }).filter(Boolean) as Array<{ id: string; name: string }>;
+    } else if (typeof raw === 'string') {
+      // comma-separated
+      genres = raw.split(',').map(s => s.trim()).filter(Boolean).map(s => ({ id: slugify(s), name: s }));
+    } else if (typeof raw === 'object') {
+      // single object
+      const name = raw.name || raw.label || JSON.stringify(raw);
+      const id = raw.id || slugify(name);
+      genres = [{ id, name }];
+    } else {
+      genres = [];
+    }
+
+    return res.status(200).json(genres);
+  } catch (e) {
+    console.error('[GET /api/users/gener] Unexpected error:', e);
+    return res.status(500).json({ error: 'Server error retrieving preferred genres' });
+  }
+})
+
+// Get Liked Artist
+router.get('/api/users/:userId/liked-artists', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+  console.log('User ID:', userId);
+  if (!userId) {
+    return res.status(400).json({ error: 'User id is not available for this request' });
+  }
+
+  try {
+    const { data, error } = await admin
+      .from('user_logged_sets')
+      .select('set_id, sets(artist_name)')
+      .eq('user_id', userId)
+      .eq('liked', true);
+
+    if (error) {
+      console.error('[GET /api/users/liked-artists] Database error:', error);
+      return res.status(500).json({ error: `[Database Error]: ${error?.message}` });
+    }
+
+    const normalizedData = data?.map((item) => (
+      {
+        id: item.set_id,
+        name: item.sets?.artist_name || ''
+      }
+    ))
+
+    return res.status(200).json(normalizedData);
+
+  } catch (error) {
+    console.error('[GET /api/users/liked-artists] Unexpected error:', error);
+    return res.status(500).json({ error: 'Server error retrieving liked artists' });
+  }
+});
+
+// Get Liked Venues
+router.get('/api/users/:userId/liked-venues', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User id is not available for this request' });
+  }
+
+  try {
+    const { data, error } = await admin
+      .from('user_logged_sets')
+      .select('set_id, sets(location_name)')
+      .eq('user_id', userId)
+      .eq('liked', true);
+
+    if (error) {
+      console.error('[GET /api/users/liked-venues] Database error:', error);
+      return res.status(500).json({ error: `[Database Error]: ${error?.message}` });
+    }
+
+    const normalizedData = data?.map((item) => (
+      {
+        id: item.set_id,
+        name: item.sets?.location_name || ''
+      }
+    ))
+
+    return res.status(200).json(normalizedData);
+
+  } catch (error) {
+    console.error('[GET /api/users/liked-venues] Unexpected error:', error);
+    return res.status(500).json({ error: 'Server error retrieving liked venues' });
+  }
+});
+
+// Get User's Friends
+router.get('/api/users/:userId/friends', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User id is not available for this request' });
+  }
+
+  try {
+    const { data, error } = await admin
+      .from('friends')
+      .select(`
+        *,
+        requester:profiles!friends_requester_id_fkey(id, username, email, avatar_url),
+        receiver:profiles!friends_receiver_id_fkey(id, username, email, avatar_url)
+      `)
+      .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[GET /api/users/friends] Database error:', error);
+      return res.status(500).json({ error: `[Database Error]: ${error?.message}` });
+    }
+
+    const normalizedData = data?.map((item) => (
+      {
+        id: item.id,
+        status: item.status,
+        username: item.requester_id === userId ? item.receiver?.username : item.requester?.username,
+        email: item.requester_id === userId ? item.receiver?.email : item.requester?.email,
+        avatar_url: item.requester_id === userId ? item.receiver?.avatar_url : item.requester?.avatar_url,
+        is_requester: item.requester_id === userId,
+        created_at: item.created_at
+      }
+    ))
+
+    return res.status(200).json(normalizedData || []);
+  } catch (error) {
+    console.error('[GET /api/users/friends] Unexpected error:', error);
+    return res.status(500).json({ error: 'Server error retrieving friends' });
+  }
+});
+
+// Post endpoint to create a friend
+router.post('/api/users/:userId/friends', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+  console.log('Request to add friend:', req.body);
+
+  if (!userId) {
+    return res.status(400).json({ error: 'User id is not available for this request' });
+  }
+
+  const friendId = req.body.username || req?.body?.email;
+  if (!friendId) {
+    return res.status(400).json({ error: 'friendId is required in the request body' });
+  }
+
+  const {data, error} = await admin
+    .from('profiles')
+    .select('id')
+    .or(`username.eq.${friendId},email.eq.${friendId}`)
+    .single();
+
+  if (error || !data) {
+    console.error('Error finding friend by username/email:', error);
+    return res.status(404).json({ error: 'Friend not found' });
+  }
+
+  const friendUserId = data.id;
+
+  if (friendUserId === userId) {
+    return res.status(400).json({ error: 'You cannot add yourself as a friend' });
+  }
+
+  const { data: insertData, error: insertError } = await admin
+    .from('friends')
+    .insert([{ requester_id: userId, receiver_id: friendUserId, status: 'pending' }]);
+
+  if (insertError) {
+    console.error('Error adding friend:', insertError);
+    return res.status(500).json({ error: 'Failed to add friend' });
+  }
+
+  return res.status(201).json({ message: 'Friend request sent', friend: insertData });
+});
+
+// Update friend status
+router.put('/api/users/:userId/friends/:friendId/accept', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+  const friendId = req.params.friendId;
+  console.log(`Request to accept friend: userId=${userId}, friendId=${friendId}`);
+  if (!userId || !friendId) {
+    return res.status(400).json({ error: 'User id and friend id are required for this request' });
+  }
+
+  try {
+    // First, try to accept by friends row id (client may be sending the friends row id)
+    let { data, error } = await admin
+      .from('friends')
+      .update({ status: 'accepted' })
+      .eq('id', friendId)
+      .eq('receiver_id', userId)
+      .eq('status', 'pending')
+      .select();
+
+    if (error) {
+      console.error('Error accepting friend request by row id:', error);
+      return res.status(500).json({ error: 'Failed to accept friend request' });
+    }
+
+    if (data && data.length > 0) {
+      return res.status(200).json({ message: 'Friend request accepted', friend: data[0] });
+    }
+
+    // If no rows updated, fall back to accepting by requester_id (client may have sent the requester user id)
+    const { data: data2, error: error2 } = await admin
+      .from('friends')
+      .update({ status: 'accepted' })
+      .eq('requester_id', friendId)
+      .eq('receiver_id', userId)
+      .eq('status', 'pending')
+      .select();
+
+    if (error2) {
+      console.error('Error accepting friend request by requester/receiver:', error2);
+      return res.status(500).json({ error: 'Failed to accept friend request' });
+    }
+
+    if (!data2 || data2.length === 0) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    return res.status(200).json({ message: 'Friend request accepted', friend: data2[0] });
+  } catch (error) {
+    console.error('Unexpected error accepting friend request:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete a friend
+router.delete('/api/users/:userId/friends/:friendId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.params.userId;
+  const friendId = req.params.friendId;
+  console.log(`Request to delete friend: userId=${userId}, friendId=${friendId}`);
+  if (!userId || !friendId) {
+    return res.status(400).json({ error: 'User id and friend id are required for this request' });
+  }
+  try {
+    let { data, error } = await admin
+      .from('friends')
+      .delete()
+      .eq('id', friendId)
+      .or(`requester_id.eq.${userId},receiver_id.eq.${userId}`)
+      .select();
+
+    if (error) {
+      console.error('Error deleting friend by row id:', error);
+      return res.status(500).json({ error: 'Failed to delete friend' });
+    }
+
+    if (data && data.length > 0) {
+      return res.status(200).json({ message: 'Friend deleted', friend: data[0] });
+    }
+  } catch (error) {
+    console.error('Unexpected error deleting friend:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 export function registerRoutes(app: express.Express): void {
   // Register routes

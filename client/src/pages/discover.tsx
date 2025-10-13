@@ -5,7 +5,10 @@ import { DiscoverSearchBar } from "../components/discover/discover-search-bar";
 import { DiscoverRecommendedSection } from "../components/discover/discover-recommended-section";
 import { DiscoverTrendingSection } from "../components/discover/discover-trending-section";
 import { fetchRecommendedSets, fetchTrendingSets, searchExternalSets } from "../lib/api/external-sets";
+import { fetchWithAuth } from "@/lib/api/fetchWithAuth";
 import type { Set } from "../types/set";
+import { v4 as uuidv4 } from 'uuid';
+
 
 export default function DiscoverPage() {
   const [searchResults, setSearchResults] = useState<Set[] | null>(null);
@@ -40,6 +43,17 @@ export default function DiscoverPage() {
   const handleSearch = (query: string) => {
     setSearchQuery(query);
   };
+
+  function saveSet() {
+    const setId = uuidv4();
+    fetchWithAuth(`/api/sets/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ setId }),
+    });
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -91,6 +105,7 @@ export default function DiscoverPage() {
             <div className="space-y-4">
               {searchResults.map((set) => (
                 <div key={set.id} className="bg-neutral-900 rounded p-4 border border-neutral-800">
+                  <p>{set.id}</p>
                   <p className="text-white font-medium">{set.title}</p>
                   <p className="text-sm text-gray-400">{set.artist_name}</p>
                   <a
@@ -101,9 +116,6 @@ export default function DiscoverPage() {
                   >
                     Listen Now
                   </a>
-                  <button>
-                    Save Now
-                  </button>
                 </div>
               ))}
             </div>

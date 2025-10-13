@@ -86,6 +86,7 @@ interface Friend {
   email: string;
   avatar_url?: string;
   status: 'pending' | 'accepted' | 'requested';
+  is_requester: boolean; 
 }
 
 export function Profile({ openAuthModal }: ProfileProps) {
@@ -103,7 +104,6 @@ export function Profile({ openAuthModal }: ProfileProps) {
   const { data: likedSets = [], isLoading: isLoadingLikedSets } = useUserLikedSets(user?.id || '');
   const { data: savedSets = [], isLoading: isLoadingSavedSets } = useUserSavedSets(user?.id || '');
 
-  console.log('🔴 [Debug] Found Liked Sets: ', likedSets)
 
   // Fetch liked artists
   const { data: likedArtists = [], isLoading: isLoadingLikedArtists } = useQuery<LikedItem[]>({
@@ -119,7 +119,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
 
   // Fetch liked genres
   const { data: likedGenres = [], isLoading: isLoadingLikedGenres } = useQuery<LikedItem[]>({
-    queryKey: [`/api/users/${user?.id}/liked-genres`],
+    queryKey: [`/api/users/gener`],
     enabled: !!user?.id,
   });
 
@@ -776,11 +776,11 @@ export function Profile({ openAuthModal }: ProfileProps) {
                 ) : friends.length > 0 ? (
                   <div className="space-y-3">
                     {/* Pending Friend Requests Section */}
-                    {friends.filter(friend => friend.status === 'pending').length > 0 && (
+                    {friends.filter(friend => friend.status === 'pending' && !friend.is_requester).length > 0 && (
                       <div className="mb-4">
                         <h5 className="text-xs text-gray-400 mb-2">Pending Requests</h5>
                         {friends
-                          .filter(friend => friend.status === 'pending')
+                          .filter(friend => friend.status === 'pending' && !friend.is_requester)
                           .map(friend => (
                             <Card key={friend.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
                               <div className="flex items-center p-3">
@@ -788,7 +788,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                                   {friend.avatar_url ? (
                                     <img src={friend.avatar_url} alt={friend.username} className="h-full w-full object-cover rounded-full" />
                                   ) : (
-                                    friend.username.charAt(0).toUpperCase()
+                                    friend?.username?.charAt(0).toUpperCase()
                                   )}
                                 </div>
                                 <div className="flex-grow">
@@ -811,11 +811,11 @@ export function Profile({ openAuthModal }: ProfileProps) {
                     )}
 
                     {/* Sent Friend Requests */}
-                    {friends.filter(friend => friend.status === 'requested').length > 0 && (
+                    {friends.filter(friend => friend.status === 'pending' && friend.is_requester).length > 0 && (
                       <div className="mb-4">
                         <h5 className="text-xs text-gray-400 mb-2">Sent Requests</h5>
                         {friends
-                          .filter(friend => friend.status === 'requested')
+                          .filter(friend => friend.status === 'pending' && friend.is_requester)
                           .map(friend => (
                             <Card key={friend.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
                               <div className="flex items-center p-3">
@@ -823,7 +823,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                                   {friend.avatar_url ? (
                                     <img src={friend.avatar_url} alt={friend.username} className="h-full w-full object-cover rounded-full" />
                                   ) : (
-                                    friend.username.charAt(0).toUpperCase()
+                                    friend?.username?.charAt(0).toUpperCase()
                                   )}
                                 </div>
                                 <div className="flex-grow">
@@ -852,7 +852,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
                                   {friend.avatar_url ? (
                                     <img src={friend.avatar_url} alt={friend.username} className="h-full w-full object-cover rounded-full" />
                                   ) : (
-                                    friend.username.charAt(0).toUpperCase()
+                                    friend && friend?.username?.charAt(0).toUpperCase()
                                   )}
                                 </div>
                                 <div className="flex-grow">

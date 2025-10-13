@@ -47,9 +47,9 @@ export function DiscoverRecommendedSection({
               >
                 Listen Now
               </a>
-              <button className=" py-1 px-2 rounded-lg text-gray-100 hover:text-gray-50 bg-gray-800 ms-2 hover:bg-gray-900" onClick={() => saveSet(set.id)}>
+              {/* <button className=" py-1 px-2 rounded-lg text-gray-100 hover:text-gray-50 bg-gray-800 ms-2 hover:bg-gray-900" onClick={() => saveSet(set.id)}>
                 Save Now
-              </button>
+              </button> */}
             </div>
           ))}
         </div>
