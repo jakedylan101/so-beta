@@ -105,7 +105,6 @@ export default function DiscoverPage() {
             <div className="space-y-4">
               {searchResults.map((set) => (
                 <div key={set.id} className="bg-neutral-900 rounded p-4 border border-neutral-800">
-                  <p>{set.id}</p>
                   <p className="text-white font-medium">{set.title}</p>
                   <p className="text-sm text-gray-400">{set.artist_name}</p>
                   <a
