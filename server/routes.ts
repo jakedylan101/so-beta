@@ -10,6 +10,8 @@ import { spotifyService, soundcloudService } from './services';
 import { configDotenv } from 'dotenv';
 import { fetchYouTubeResults } from '@/lib/api/youtube';
 import { error } from 'console';
+import { v4 as uuidv4, validate as isUUID } from 'uuid';
+import e from 'express';
 
 configDotenv()
 
@@ -1234,56 +1236,57 @@ router.get("/api/spotify/artist-image", async (req: Request, res: Response) => {
 
 // API endpoint to save a set
 router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { set } = req.body;
+  const setId = set?.id;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  if (!setId) return res.status(400).json({ error: "Missing setId parameter" });
+
   try {
-    console.log('----------- SAVE SET API CALL START -----------');
-    const userId = req.user?.id;
-    const { setId } = req.body;
+    // 1️⃣ Check if set exists in the "sets" table
+    const { data: existingSet, error: setError } = await admin
+      .from("sets")
+      .select("id")
+      .eq("id", setId)
+      .maybeSingle();
 
-    // Auth is handled by requireAuth middleware, but double-check
-    if (!userId) {
-      console.error("POST /api/sets/save failed: User ID missing after authentication");
-      return res.status(401).json({ error: "Unauthorized" });
+    if (setError) {
+      console.error("[DEBUG] Error checking set existence:", setError);
+      return res.status(500).json({ error: "Database error" });
     }
 
-    if (!setId) {
-      console.error("POST /api/sets/save failed: Missing setId in request body");
-      return res.status(400).json({ error: "Missing setId parameter" });
+    if (!existingSet) {
+      // Craete the set if it doesn't exist
+      const { error: createError } = await admin
+        .from("sets")
+        .insert({
+          id: setId,
+          artist_name: set.artist_name,
+          source: 'user_save',
+          user_id: userId
+        });
+
+      if (createError) {
+        console.error("[DEBUG] Error creating set:", createError);
+        return res.status(500).json({ error: "Failed to create set" });
+      }
     }
 
-    console.log(`[DEBUG] Saving set for userId=${userId}, setId=${setId}`);
-
-    // Validate UUID format for setId to avoid DB errors
-    // const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-    // if (!isUUID(setId)) {
-    //   console.warn('[POST /api/sets/save] Invalid UUID provided for setId:', setId);
-    //   return res.status(400).json({ error: 'Invalid set ID format' });
-    // }
-
-    // Get the JWT token from the request headers
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: "Valid authorization header required" });
-    }
-    const jwt = authHeader.split(' ')[1];
-
-    // Insert into user_sets_saved table using the user's client (enforces RLS)
-    const { data, error } = await getUserClient(jwt)
-      .from('user_sets_saved')
+    // 2️⃣ Insert or update record in user_sets_saved
+    const { error: saveError } = await admin
+      .from("user_sets_saved")
       .upsert({
         user_id: userId,
         set_id: setId,
         saved_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,set_id'
       });
 
-    if (error) {
-      console.error("[DEBUG] Error saving set:", error);
+    if (saveError) {
+      console.error("[DEBUG] Error saving set:", saveError);
       return res.status(500).json({ error: "Failed to save set" });
     }
 
-    console.log(`[DEBUG] Successfully saved set: userId=${userId}, setId=${setId}`);
-    console.log('----------- SAVE SET API CALL END -----------');
 
     return res.status(200).json({ success: true });
   } catch (error) {
@@ -1291,6 +1294,7 @@ router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // API endpoint to unsave a set
 router.delete("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -1635,10 +1639,31 @@ router.get('/api/users/:userId/liked', requireAuth, async (req: AuthenticatedReq
 
 // Get Saved Sets
 router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  res.json('API Available - Not implemented yet')
+  const userId = req.params.userId;
+
+  const { data, error } = await admin
+    .from('user_sets_saved')
+    .select('*, sets(artist_name)')
+    .eq('user_id', userId)
+    .order('saved_at', { ascending: false });
+
+    if (error) {
+      res.status(500).json({ 'Database Error: ': error })
+    }
+
+    const parsedData = data?.map((item: any) => (
+      {
+        id: item.set_id,
+        artist_name: item.sets?.artist_name || '',
+        saved_at: item.saved_at,
+        event_date: item.saved_at,
+      }
+    ))
+
+    res.status(200).json({ data: parsedData });
 })
 
-// Get User's Selected Generes
+// Get User's Selected Genres
 router.get('/api/users/gener', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId: string | undefined = req?.user?.id as string | undefined;
 
@@ -1732,7 +1757,14 @@ router.get('/api/users/:userId/liked-artists', requireAuth, async (req: Authenti
       }
     ))
 
-    return res.status(200).json(normalizedData);
+    const uniqueArtistsMap = new Map<string, { id: string; name: string }>();
+    normalizedData?.forEach(artist => {
+      if (artist.name && !uniqueArtistsMap.has(artist.name)) {
+        uniqueArtistsMap.set(artist.name, { id: artist.id, name: artist.name });
+      }
+    });
+
+    return res.status(200).json(Array.from(uniqueArtistsMap.values()));
 
   } catch (error) {
     console.error('[GET /api/users/liked-artists] Unexpected error:', error);
@@ -1767,7 +1799,14 @@ router.get('/api/users/:userId/liked-venues', requireAuth, async (req: Authentic
       }
     ))
 
-    return res.status(200).json(normalizedData);
+    const uniqueVenuesMap = new Map<string, { id: string; name: string }>();
+    normalizedData?.forEach(venue => {
+      if (venue.name && !uniqueVenuesMap.has(venue.name)) {
+        uniqueVenuesMap.set(venue.name, { id: venue.id, name: venue.name });
+      }
+    });
+
+    return res.status(200).json(Array.from(uniqueVenuesMap.values()));
 
   } catch (error) {
     console.error('[GET /api/users/liked-venues] Unexpected error:', error);

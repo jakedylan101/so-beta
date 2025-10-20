@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSignOut } from '@/lib/auth';
@@ -10,11 +10,8 @@ import { fetchWithAuth } from '@/lib/api/fetchWithAuth';
 import { Input } from '@/components/ui/input';
 import { useMutation } from '@tanstack/react-query';
 import {
-  ChevronRightIcon,
   Settings,
-  Bell,
   UserRound,
-  HelpCircle,
   LogOut,
   Music,
   Map,
@@ -40,35 +37,15 @@ interface ProfileProps {
   openAuthModal: () => void;
 }
 
-interface UserStats {
-  totalSets: number;
-  totalLikedSets: number;
-  totalSavedSets: number;
-  totalComparisons: number;
-  sets_logged?: number;
-  logged_sets_liked?: number;
-  discovery_sets_liked?: number;
-  sets_saved?: number;
-  friends_count?: number;
-  mostLoggedArtists: { artist_name: string; count: number }[];
-  mostVisitedVenues: { location_name: string; count: number }[];
-  preferredGenres: { genre: string; count: number }[];
-  globalRanking?: GlobalRanking;
-}
-
-interface GlobalRanking {
-  rank: number;
-  totalUsers: number;
-  percentile: number;
-}
+// UserStats and GlobalRanking types are provided by useUserStats hook return types; not redeclaring here.
 
 interface SavedSet {
   id: number;
   artist_name: string;
-  location_name: string;
+  location_name?: string;
   event_name?: string;
-  event_date: string;
-  // some API responses return an array for image_url (e.g. [] or [url])
+  event_date?: string;
+  //some API responses return an array for image_url (e.g. [] or [url])
   image_url?: string | string[];
   saved_at: string;
 }
@@ -86,7 +63,7 @@ interface Friend {
   email: string;
   avatar_url?: string;
   status: 'pending' | 'accepted' | 'requested';
-  is_requester: boolean; 
+  is_requester: boolean;
 }
 
 export function Profile({ openAuthModal }: ProfileProps) {
@@ -100,9 +77,48 @@ export function Profile({ openAuthModal }: ProfileProps) {
   const [, setLocation] = useLocation();
 
   // Use our new hooks
-  const { data: stats, isLoading: isLoadingStats } = useUserStats(user?.id || '');
+  const { data: stats } = useUserStats(user?.id || '');
   const { data: likedSets = [], isLoading: isLoadingLikedSets } = useUserLikedSets(user?.id || '');
   const { data: savedSets = [], isLoading: isLoadingSavedSets } = useUserSavedSets(user?.id || '');
+
+  console.log("[DEBUG] Fetched saved sets:", savedSets?.data);
+
+  // Component to fetch artist image from server-side API when not provided by the API
+  function ArtistImage({ name, alt, className }: { name: string; alt?: string; className?: string }) {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+      let mounted = true;
+      if (!name) return;
+
+      const fetchImage = async () => {
+        try {
+          const res = await fetchWithAuth(`/api/spotify/artist-image?name=${encodeURIComponent(name)}`);
+          if (!mounted) return;
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data?.imageUrl && mounted) setImageUrl(data.imageUrl);
+        } catch (err) {
+          // ignore fetch errors, leave imageUrl null
+          console.debug('[ArtistImage] fetch error for', name, err);
+        }
+      };
+
+      fetchImage();
+      return () => { mounted = false; };
+    }, [name]);
+
+    if (imageUrl) {
+      return <img src={imageUrl} alt={alt || name} className={className || 'w-full h-full object-cover'} />;
+    }
+
+    // fallback icon
+    return (
+      <div className={`flex items-center justify-center h-full w-full ${className || ''}`}>
+        <Music className="h-8 w-8 text-white/70" />
+      </div>
+    );
+  }
 
 
   // Fetch liked artists
@@ -250,7 +266,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
           description: "You have been successfully logged out.",
         });
       },
-      onError: (error) => {
+      onError: () => {
         toast({
           title: "Error",
           description: "Failed to log out. Please try again.",
@@ -283,36 +299,38 @@ export function Profile({ openAuthModal }: ProfileProps) {
   }
 
   // Helper function to render a set card
-  const renderSetCard = (set: SavedSet) => (
-    <Card key={set.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
-      <div className="flex">
-        <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-blue-400 flex-shrink-0">
-          {(() => {
-            const img = Array.isArray(set.image_url)
-              ? set.image_url[0]
-              : set.image_url;
-            return img ? (
-              <img src={img} alt={set.artist_name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="flex items-center justify-center h-full w-full">
-                <Music className="h-8 w-8 text-white/70" />
-              </div>
-            );
-          })()}
-        </div>
-        <div className="p-3 flex-grow">
-          <h4 className="font-semibold text-sm line-clamp-1">{set.artist_name}</h4>
-          <p className="text-xs text-gray-400 line-clamp-1">{set.location_name}</p>
-          <div className="flex items-center mt-1">
-            <CalendarClock className="h-3 w-3 text-gray-500 mr-1" />
-            <span className="text-xs text-gray-500">
-              {new Date(set.event_date).toLocaleDateString()}
-            </span>
+  const renderSetCard = (set: SavedSet) => {
+
+    return (
+      <Card key={set.id} className="bg-gray-800 border-none rounded-lg overflow-hidden mb-3">
+        <div className="flex">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-blue-400 flex-shrink-0">
+            {(() => {
+              const img = Array.isArray(set.image_url)
+                ? set.image_url[0]
+                : set.image_url;
+              return img ? (
+                <img src={img} alt={set.artist_name} className="w-full h-full object-cover" />
+              ) : (
+                // Use ArtistImage to fetch from server if available
+                <ArtistImage name={set.artist_name} alt={set.artist_name} className="w-full h-full object-cover" />
+              );
+            })()}
+          </div>
+          <div className="p-3 flex-grow">
+            <h4 className="font-semibold text-sm line-clamp-1">{set.artist_name}</h4>
+            <p className="text-xs text-gray-400 line-clamp-1">{set.location_name}</p>
+              <div className="flex items-center mt-1">
+              <CalendarClock className="h-3 w-3 text-gray-500 mr-1" />
+              <span className="text-xs text-gray-500">
+                {set.event_date ? new Date(set.event_date).toLocaleDateString() : 'Unknown'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </Card>
-  );
+      </Card>
+    )
+  };
 
   // Helper function to render an item card (artists, genres, venues)
   const renderItemCard = (item: LikedItem) => (
@@ -322,9 +340,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
           {item.image_url ? (
             <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="flex items-center justify-center h-full w-full">
-              <Music2 className="h-6 w-6 text-white/70" />
-            </div>
+            <ArtistImage name={item.name} alt={item.name} className="w-full h-full object-cover" />
           )}
         </div>
         <div className="p-3 flex-grow flex flex-col justify-center">
@@ -465,7 +481,7 @@ export function Profile({ openAuthModal }: ProfileProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-4">
-              <ScrollArea className="h-[400px] pr-4">              
+              <ScrollArea className="h-[400px] pr-4">
                 {isLoadingSavedSets ? (
                   <>
                     {[1, 2, 3].map(i => (
@@ -474,8 +490,8 @@ export function Profile({ openAuthModal }: ProfileProps) {
                       </div>
                     ))}
                   </>
-                ) : savedSets && savedSets?.length > 0 ? (
-                  savedSets?.map((set: SavedSet) => renderSetCard(set))
+                ) : savedSets && savedSets.data?.length > 0 ? (
+                  savedSets.data.map((set: SavedSet) => renderSetCard(set))
                 ) : (
                   <div className="text-center p-6">
                     <Bookmark className="h-12 w-12 mx-auto text-gray-600 mb-2" />

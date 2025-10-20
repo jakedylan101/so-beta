@@ -9,7 +9,7 @@ export function useUserSavedSets(userId: string) {
   return useQuery({
     queryKey: ['savedSets', userId],
     queryFn: async () => {
-      const res = await fetchWithAuth(`/api/users/${userId}/s aved`);
+      const res = await fetchWithAuth(`/api/users/${userId}/saved`);
       if (!res.ok) throw new Error('Failed to fetch saved sets');
       return res.json();
     },

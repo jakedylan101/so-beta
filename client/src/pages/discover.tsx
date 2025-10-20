@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useState, useDeferredValue } from "react";
+import { useEffect, useState, useDeferredValue } from "react";
 import { DiscoverSearchBar } from "../components/discover/discover-search-bar";
 import { DiscoverRecommendedSection } from "../components/discover/discover-recommended-section";
 import { DiscoverTrendingSection } from "../components/discover/discover-trending-section";
 import { fetchRecommendedSets, fetchTrendingSets, searchExternalSets } from "../lib/api/external-sets";
 import { fetchWithAuth } from "@/lib/api/fetchWithAuth";
+import { Button } from "../components/ui/button";
 import type { Set } from "../types/set";
-import { v4 as uuidv4 } from 'uuid';
+import { v5 as uuidv5 } from 'uuid';
+// uuid not needed for client-side save anymore
 
 
 export default function DiscoverPage() {
@@ -18,6 +20,11 @@ export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredQuery = useDeferredValue(searchQuery);
   const [searching, setSearching] = useState(false);
+
+  function generateSetId(setId: string): string {
+    const NAMESPACE_UUID = '123e4567-e89b-12d3-a456-426614174000';
+    return uuidv5(setId, NAMESPACE_UUID);
+  }
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -44,15 +51,35 @@ export default function DiscoverPage() {
     setSearchQuery(query);
   };
 
-  function saveSet() {
-    const setId = uuidv4();
-    fetchWithAuth(`/api/sets/save`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ setId }),
-    });
+  async function saveSet(set: Set) {
+    // Use fallback if the set.id is missing (e.g. generate from artist_name or external_url)
+    const rawId = set.id || set.external_url || set.title;
+
+    if (!rawId) {
+      console.error("Cannot generate set ID — missing unique identifier", set);
+      return;
+    }
+
+    const setId = generateSetId(rawId);
+
+    const normalizedSet = {
+      id: setId,
+      title: set.title,
+      artist_name: set.artist_name,
+      external_url: set.external_url,
+    };
+
+    try {
+      await fetchWithAuth(`/api/sets/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ set: normalizedSet }),
+      });
+
+      console.log("Saved set", normalizedSet);
+    } catch (error) {
+      console.error("Error saving set:", error);
+    }
   }
 
   useEffect(() => {
@@ -115,6 +142,7 @@ export default function DiscoverPage() {
                   >
                     Listen Now
                   </a>
+                  <Button onClick={() => saveSet(set)}>Save</Button>
                 </div>
               ))}
             </div>
