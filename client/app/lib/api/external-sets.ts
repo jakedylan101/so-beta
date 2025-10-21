@@ -14,7 +14,7 @@ export async function fetchRecommendedSets() {
   }
 
   const data = await res.json();
-  return data.sets ?? [];
+  return data ?? [];
 }
 
 export async function fetchTrendingSets() {
@@ -31,5 +31,5 @@ export async function fetchTrendingSets() {
   }
 
   const data = await res.json();
-  return data.sets ?? [];
+  return data ?? [];
 } 

@@ -18,9 +18,11 @@ export async function searchExternalSets(query: string): Promise<Set[]> {
 
   try {
     console.log(`Fetching search results for query: ${query}`);
-    const apiUrl = import.meta.env.PROD 
-      ? `/api/discover/search?q=${encodeURIComponent(query)}`
-      : `http://localhost:3001/api/search?q=${encodeURIComponent(query)}`;
+    // const apiUrl = import.meta.env.PROD 
+    //   ? `/api/discover/search?q=${encodeURIComponent(query)}`
+    //   : `http://localhost:3001/api/search?q=${encodeURIComponent(query)}`;
+
+    const apiUrl = "http://localhost:3001/api/search?q=" + encodeURIComponent(query);
     
     const res = await fetch(apiUrl, { headers });
     
@@ -62,12 +64,16 @@ export async function fetchRecommendedSets(): Promise<Set[]> {
   };
 
   try {
-    console.log("Fetching recommended sets...");
-    const apiUrl = import.meta.env.PROD 
-      ? "/api/discover/recommendations"
-      : "http://localhost:3001/api/recommendations";
+    console.log("[EC5173] Fetching recommended sets...");
+    // const apiUrl = import.meta.env.PROD 
+    //   ? "/api/discover/recommendations"
+    //   : "http://localhost:3001/api/recommendations";
+
+    const apiUrl = "http://localhost:3001/api/recommendations";
       
     const res = await fetch(apiUrl, { headers });
+
+    console.log("[RECOMMENDED API RESPONSE]", res);
 
     if (!res.ok) {
       console.error(`Recommendations API error: ${res.status} ${res.statusText}`);
@@ -107,10 +113,12 @@ export async function fetchTrendingSets(): Promise<Set[]> {
   };
 
   try {
-    console.log("Fetching trending sets...");
-    const apiUrl = import.meta.env.PROD 
-      ? "/api/discover/trending"
-      : "http://localhost:3001/api/trending-sets";
+    console.log("[C5174] Fetching trending sets...");
+    // const apiUrl = import.meta.env.PROD 
+    //   ? "/api/discover/trending"
+    //   : "http://localhost:3001/api/trending-sets";
+
+    const apiUrl = "http://localhost:3001/api/trending-sets";
       
     const res = await fetch(apiUrl, { headers });
 
@@ -126,6 +134,7 @@ export async function fetchTrendingSets(): Promise<Set[]> {
       return [];
     }
 
+    console.log("[API RESPONSE]", res);
     const data = await res.json();
     console.log(`Trending returned ${data.length || 0} sets`);
     return data ?? [];
