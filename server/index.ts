@@ -84,12 +84,12 @@ const app = express();
 
 // Add CORS middleware to handle cross-origin requests and Authorization header
 app.use((req, res, next) => {
-  // const allowedOrigin =
-  //   process.env.NODE_ENV === "production"
-  //     ? "https://your-frontend-domain.com"
-  //     : "*";
+  const allowedOrigin =
+    process.env.NODE_ENV === "production"
+      ? process.env.FRONTEND_DOMAIN || "http://127.0.0.1:3001"
+      : "*";
 
-  const allowedOrigin = "*"; // Allow all origins for development/testing
+  // const allowedOrigin = "*"; // Allow all origins for development/testing
   res.header("Access-Control-Allow-Origin", allowedOrigin);
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header(

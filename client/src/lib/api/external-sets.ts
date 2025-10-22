@@ -22,10 +22,10 @@ export async function searchExternalSets(query: string): Promise<Set[]> {
     //   ? `/api/discover/search?q=${encodeURIComponent(query)}`
     //   : `http://localhost:3001/api/search?q=${encodeURIComponent(query)}`;
 
-    const apiUrl = "http://localhost:3001/api/search?q=" + encodeURIComponent(query);
-    
+    const apiUrl = "/api/search?q=" + encodeURIComponent(query);
+
     const res = await fetch(apiUrl, { headers });
-    
+
     if (!res.ok) {
       console.error(`Search API error: ${res.status} ${res.statusText}`);
       // Try to get response text for better debugging
@@ -37,7 +37,7 @@ export async function searchExternalSets(query: string): Promise<Set[]> {
       }
       return [];
     }
-    
+
     const data = await res.json();
     console.log('🔴 [DEBUG] - Found Externel Setes : ', res)
     console.log(`Search returned ${data.sets?.length || 0} results`);
@@ -65,15 +65,14 @@ export async function fetchRecommendedSets(): Promise<Set[]> {
 
   try {
     console.log("[EC5173] Fetching recommended sets...");
-    // const apiUrl = import.meta.env.PROD 
+    console.log('NODE ENV : ', import.meta.env.PROD);
+    // const apiUrl = import.meta.env.PROD
     //   ? "/api/discover/recommendations"
     //   : "http://localhost:3001/api/recommendations";
 
-    const apiUrl = "http://localhost:3001/api/recommendations";
-      
-    const res = await fetch(apiUrl, { headers });
+    const apiUrl = "/api/recommendations";
 
-    console.log("[RECOMMENDED API RESPONSE]", res);
+    const res = await fetch(apiUrl, { headers });
 
     if (!res.ok) {
       console.error(`Recommendations API error: ${res.status} ${res.statusText}`);
@@ -87,11 +86,24 @@ export async function fetchRecommendedSets(): Promise<Set[]> {
       return [];
     }
 
+    console.log(" EC-109 [RECOMMENDED API RESPONSE]", res);
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      // We likely hit a static index.html fallback — log helpful debug info
+      const text = await res.text().catch(() => '<could not read html>');
+      console.error('[EC109] Expected JSON but got HTML. Response preview:', text.substring(0, 300));
+      return [];
+    }
+
     const data = await res.json();
-    console.log(`Recommendations returned ${data.length || 0} sets`);
-    return data ?? [];
+    // Normalize response: accept either { sets: Set[] } or Set[]
+    const sets: Set[] = Array.isArray(data) ? data : data?.sets ?? [];
+    console.log('🔴 [DEBUG] - Recommended Sets : ', sets);
+    console.log(`Recommendations returned ${sets.length || 0} sets`);
+    return sets;
+
   } catch (error) {
-    console.error("Error fetching recommended sets:", error);
+    console.error("[EC107] Error fetching recommended sets:", error);
     return [];
   }
 }
@@ -118,8 +130,8 @@ export async function fetchTrendingSets(): Promise<Set[]> {
     //   ? "/api/discover/trending"
     //   : "http://localhost:3001/api/trending-sets";
 
-    const apiUrl = "http://localhost:3001/api/trending-sets";
-      
+    const apiUrl = "/api/trending-sets";
+
     const res = await fetch(apiUrl, { headers });
 
     if (!res.ok) {

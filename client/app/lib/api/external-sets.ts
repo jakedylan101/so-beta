@@ -13,8 +13,15 @@ export async function fetchRecommendedSets() {
     throw new Error(`API error: ${res.status}`);
   }
 
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('text/html')) {
+    const text = await res.text().catch(() => '<could not read html>');
+    console.error('[App API] Expected JSON but got HTML. Response preview:', text.substring(0, 300));
+    return [];
+  }
+
   const data = await res.json();
-  return data ?? [];
+  return Array.isArray(data) ? data : data?.sets ?? [];
 }
 
 export async function fetchTrendingSets() {
