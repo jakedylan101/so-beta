@@ -1257,14 +1257,15 @@ router.post("/api/sets/save", requireAuth, async (req: AuthenticatedRequest, res
     }
 
     if (!existingSet) {
-      // Craete the set if it doesn't exist
+      // Create the set if it doesn't exist
       const { error: createError } = await admin
         .from("sets")
         .insert({
           id: setId,
           artist_name: set.artist_name,
           source: 'user_save',
-          user_id: userId
+          user_id: userId,
+          external_url: set.external_url || null,
         });
 
       if (createError) {
@@ -1643,7 +1644,7 @@ router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedReq
 
   const { data, error } = await admin
     .from('user_sets_saved')
-    .select('*, sets(artist_name)')
+    .select('*, sets(artist_name, external_url)')
     .eq('user_id', userId)
     .order('saved_at', { ascending: false });
 
@@ -1657,6 +1658,7 @@ router.get('/api/users/:userId/saved', requireAuth, async (req: AuthenticatedReq
         artist_name: item.sets?.artist_name || '',
         saved_at: item.saved_at,
         event_date: item.saved_at,
+        external_url: item.sets?.external_url || '',
       }
     ))
 

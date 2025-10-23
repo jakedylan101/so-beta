@@ -48,6 +48,7 @@ interface SavedSet {
   //some API responses return an array for image_url (e.g. [] or [url])
   image_url?: string | string[];
   saved_at: string;
+  external_url?: string;
 }
 
 interface LikedItem {
@@ -320,11 +321,18 @@ export function Profile({ openAuthModal }: ProfileProps) {
           <div className="p-3 flex-grow">
             <h4 className="font-semibold text-sm line-clamp-1">{set.artist_name}</h4>
             <p className="text-xs text-gray-400 line-clamp-1">{set.location_name}</p>
-              <div className="flex items-center mt-1">
+            <div className="flex items-center mt-1">
               <CalendarClock className="h-3 w-3 text-gray-500 mr-1" />
               <span className="text-xs text-gray-500">
                 {set.event_date ? new Date(set.event_date).toLocaleDateString() : 'Unknown'}
               </span>
+            </div>
+            <div className="block">
+              {set.external_url && (
+                <a href={set.external_url} target="_blank" rel="noopener noreferrer" className="text-xs p-1 bg-green-700 rounded-md">
+                  Listen Now
+                </a>
+              )}
             </div>
           </div>
         </div>

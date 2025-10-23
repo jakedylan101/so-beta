@@ -10,144 +10,31 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const MIXCLOUD_CLIENT_ID = process.env.MIXCLOUD_CLIENT_ID || '';
+// const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const router = Router();
 
-// Mock external sets data for fallback (as last resort if API calls fail)
-const MOCK_EXTERNAL_SETS = [
-  {
-    id: 'ext-1',
-    title: 'Summer Festival Mix 2024',
-    artist_name: 'Carl Cox',
-    venue_name: 'Ultra Music Festival',
-    duration: 5400, // 90 minutes
-    genre: 'Techno',
-    elo_rating: 2000,
-    like_count: 150,
-    cover_image: 'https://example.com/covers/carl-cox.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'soundcloud'
-  },
-  {
-    id: 'ext-2',
-    title: 'Ultra Music Festival 2024',
-    artist_name: 'David Guetta',
-    venue_name: 'Ultra Miami',
-    duration: 3600, // 60 minutes
-    genre: 'House',
-    elo_rating: 1950,
-    like_count: 120,
-    cover_image: 'https://example.com/covers/david-guetta.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'youtube'
-  },
-  {
-    id: 'ext-3',
-    title: 'Tomorrowland 2024 Mainstage',
-    artist_name: 'Martin Garrix',
-    venue_name: 'Tomorrowland',
-    duration: 4500, // 75 minutes
-    genre: 'Electronic',
-    elo_rating: 1900,
-    like_count: 100,
-    cover_image: 'https://example.com/covers/martin-garrix.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'mixcloud'
-  },
-  {
-    id: 'ext-4',
-    title: 'EDC Las Vegas 2024',
-    artist_name: 'Armin van Buuren',
-    venue_name: 'EDC Las Vegas',
-    duration: 7200, // 120 minutes
-    genre: 'Trance',
-    elo_rating: 1850,
-    like_count: 90,
-    cover_image: 'https://example.com/covers/armin.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'soundcloud'
-  },
-  {
-    id: 'ext-5',
-    title: 'Ibiza Closing Party 2024',
-    artist_name: 'Solomun',
-    venue_name: 'Pacha Ibiza',
-    duration: 5400, // 90 minutes
-    genre: 'House',
-    elo_rating: 1800,
-    like_count: 80,
-    cover_image: 'https://example.com/covers/solomun.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'mixcloud'
-  },
-  {
-    id: 'ext-6',
-    title: 'Berghain Extended Set',
-    artist_name: 'Ben Klock',
-    venue_name: 'Berghain',
-    duration: 10800, // 180 minutes
-    genre: 'Techno',
-    elo_rating: 1920,
-    like_count: 110,
-    cover_image: 'https://example.com/covers/ben-klock.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'soundcloud'
-  },
-  {
-    id: 'ext-7',
-    title: 'Boiler Room NYC',
-    artist_name: 'Peggy Gou',
-    venue_name: 'Boiler Room',
-    duration: 3600, // 60 minutes
-    genre: 'House',
-    elo_rating: 1880,
-    like_count: 95,
-    cover_image: 'https://example.com/covers/peggy-gou.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'youtube'
-  },
-  {
-    id: 'ext-8',
-    title: 'Printworks London Final Set',
-    artist_name: 'Amelie Lens',
-    venue_name: 'Printworks',
-    duration: 5400, // 90 minutes
-    genre: 'Techno',
-    elo_rating: 1890,
-    like_count: 98,
-    cover_image: 'https://example.com/covers/amelie-lens.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'mixcloud'
-  },
-  {
-    id: 'ext-9',
-    title: 'CRSSD Festival 2024',
-    artist_name: 'Charlotte de Witte',
-    venue_name: 'CRSSD Festival',
-    duration: 4500, // 75 minutes
-    genre: 'Techno',
-    elo_rating: 1930,
-    like_count: 115,
-    cover_image: 'https://example.com/covers/charlotte-de-witte.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'soundcloud'
-  },
-  {
-    id: 'ext-10',
-    title: 'Coachella 2024 Main Stage',
-    artist_name: 'Diplo',
-    venue_name: 'Coachella',
-    duration: 3600, // 60 minutes
-    genre: 'Electronic',
-    elo_rating: 1870,
-    like_count: 88,
-    cover_image: 'https://example.com/covers/diplo.jpg',
-    inserted_at: new Date().toISOString(),
-    source: 'youtube'
-  }
-];
+// NOTE: Removed mock data to ensure the API returns only real external data or empty arrays.
 
 const MIN_DURATION = 1800; // 30 minutes in seconds
+
+// async function getGenres() {
+//   try {
+//     const { data, error } = await supabase
+//       .from('genres')
+//       .select('*');
+
+//     if (error) {
+//       throw error;
+//     }
+
+//     return data;
+//   } catch (error) {
+//     console.error('[Supabase] Error fetching genres:', error);
+//     return [];
+//   }
+// }
+
 
 // Helper function to fetch from SoundCloud API
 async function fetchSoundCloudSets() {
@@ -516,31 +403,7 @@ async function fetchAllExternalSets() {
     ...mixcloudSets
   ];
   
-  // If we're missing sources, add mock data to ensure diversity
-  if (soundcloudSets.length === 0) {
-    console.log('[External API] No SoundCloud sets returned, adding mock data');
-    const mockSoundcloudSets = MOCK_EXTERNAL_SETS
-      .filter(set => set.source === 'soundcloud')
-      .slice(0, 3);
-    allSets = [...allSets, ...mockSoundcloudSets];
-  }
-  
-  if (youtubeSets.length === 0) {
-    console.log('[External API] No YouTube sets returned, adding mock data');
-    const mockYoutubeSets = MOCK_EXTERNAL_SETS
-      .filter(set => set.source === 'youtube')
-      .slice(0, 3);
-    allSets = [...allSets, ...mockYoutubeSets];
-  }
-  
-  if (mixcloudSets.length === 0) {
-    console.log('[External API] No Mixcloud sets returned, adding mock data');
-    const mockMixcloudSets = MOCK_EXTERNAL_SETS
-      .filter(set => set.source === 'mixcloud')
-      .slice(0, 3);
-    allSets = [...allSets, ...mockMixcloudSets];
-  }
-  
+
   // Check source distribution after adding mock data
   const sourceCounts = allSets.reduce((acc, set) => {
     acc[set.source] = (acc[set.source] || 0) + 1;
@@ -586,7 +449,7 @@ router.get('/api/trending-sets', async (req, res) => {
     // If no valid sets found, use mock data as fallback
     if (validSets.length === 0) {
       console.log('[Trending-Sets API] No valid sets found, using mock data');
-      return res.json(MOCK_EXTERNAL_SETS);
+      return res.json([]);
     }
     
     // Ensure all sets have cover images
@@ -611,7 +474,7 @@ router.get('/api/trending-sets', async (req, res) => {
     console.error('[Trending-Sets API] Error:', error.message);
     // Fall back to mock data in case of errors
     console.log('[Trending-Sets API] Error occurred, returning mock data');
-    res.json(MOCK_EXTERNAL_SETS);
+    res.json([]);
   }
 });
 
@@ -658,30 +521,6 @@ router.get('/api/mixed-source-sets', async (req, res) => {
     // Ensure we have at least some from each source by adding mock data if needed
     let balancedSets = [...allExternalSets];
     
-    if (!sourceCounts['soundcloud'] || sourceCounts['soundcloud'] < 2) {
-      console.log('[Mixed-Source API] Adding mock SoundCloud sets to ensure balance');
-      const mockSoundcloudSets = MOCK_EXTERNAL_SETS
-        .filter(set => set.source === 'soundcloud')
-        .slice(0, 3);
-      balancedSets = [...balancedSets, ...mockSoundcloudSets];
-    }
-    
-    if (!sourceCounts['youtube'] || sourceCounts['youtube'] < 2) {
-      console.log('[Mixed-Source API] Adding mock YouTube sets to ensure balance');
-      const mockYoutubeSets = MOCK_EXTERNAL_SETS
-        .filter(set => set.source === 'youtube')
-        .slice(0, 3);
-      balancedSets = [...balancedSets, ...mockYoutubeSets];
-    }
-    
-    if (!sourceCounts['mixcloud'] || sourceCounts['mixcloud'] < 2) {
-      console.log('[Mixed-Source API] Adding mock Mixcloud sets to ensure balance');
-      const mockMixcloudSets = MOCK_EXTERNAL_SETS
-        .filter(set => set.source === 'mixcloud')
-        .slice(0, 3);
-      balancedSets = [...balancedSets, ...mockMixcloudSets];
-    }
-    
     // Shuffle the balanced sets
     const shuffledSets = balancedSets.sort(() => Math.random() - 0.5);
     
@@ -716,16 +555,9 @@ router.get('/api/sets/by-genre/:genre', async (req, res) => {
       );
     }
     
-    // If still not enough sets, return some mock sets for this genre
+    // If still not enough sets, just return what we have (no mock data)
     if (genreSets.length < 3) {
-      console.log(`[Sets-By-Genre API] Not enough sets with genre ${genre}, adding mock data`);
-      const mockGenreSets = MOCK_EXTERNAL_SETS.map(set => ({
-        ...set,
-        genre: genre.charAt(0).toUpperCase() + genre.slice(1),
-        id: `mock-${set.id}-${Math.random().toString(36).substring(2, 7)}`,
-        inserted_at: new Date().toISOString()
-      }));
-      genreSets = [...genreSets, ...mockGenreSets];
+      console.log(`[Sets-By-Genre API] Not enough sets with genre ${genre}, returning available results (${genreSets.length})`);
     }
     
     // Ensure all sets have cover images
@@ -748,14 +580,8 @@ router.get('/api/sets/by-genre/:genre', async (req, res) => {
     return res.json(shuffleArray(setsWithImages).slice(0, 10));
   } catch (error: any) {
     console.error(`[Sets-By-Genre API] Error for genre ${genre}:`, error.message);
-    // Return mock data for this genre in case of error
-    const mockGenreSets = MOCK_EXTERNAL_SETS.map(set => ({
-      ...set,
-      genre: genre.charAt(0).toUpperCase() + genre.slice(1),
-      id: `mock-${set.id}-${Math.random().toString(36).substring(2, 7)}`,
-      inserted_at: new Date().toISOString()
-    }));
-    return res.json(shuffleArray(mockGenreSets).slice(0, 10));
+    // On error, return an empty results array (do not return mock data)
+    return res.json([]);
   }
 });
 
@@ -764,38 +590,28 @@ router.get('/api/sets/by-genre/:genre', async (req, res) => {
 router.get('/api/sets/by-artist/favorites', async (req, res) => {
   console.log('[Favorite-Artists API] Processing request');
   
-  try {
-    // In a real app, we would fetch the user's favorite artists from their profile
-    // For now, we'll use some of the mock data as "favorites"
-    
-    // Get some random artists from the mock data
-    const favoriteArtists = MOCK_EXTERNAL_SETS
-      .map(set => set.artist_name)
-      .filter((artist, index, self) => self.indexOf(artist) === index)
-      .slice(0, 5);
-    
-    console.log(`[Favorite-Artists API] Mock favorite artists: ${favoriteArtists.join(', ')}`);
-    
-    // Fetch all external sets
-    const allExternalSets = await fetchAllExternalSets();
+    try {
+      // Fetch all external sets first
+      const allExternalSets = await fetchAllExternalSets();
+
+      // Derive favorite artists from recent external sets (unique artist names)
+      const favoriteArtists = Array.from(new Set(allExternalSets.map(set => set.artist_name))).slice(0, 5);
+
+      if (favoriteArtists.length === 0) {
+        console.log('[Favorite-Artists API] No favorite artists derived from external sets');
+        return res.json([]);
+      }
+
+      console.log(`[Favorite-Artists API] Derived favorite artists: ${favoriteArtists.join(', ')}`);
     
     // Filter sets by the favorite artists
     let artistSets = allExternalSets.filter(set => 
       favoriteArtists.includes(set.artist_name)
     );
     
-    // If not enough sets from favorite artists, add some from mock data
+    // If not enough sets from favorite artists, just return what we have (no mock fallback)
     if (artistSets.length < 5) {
-      console.log(`[Favorite-Artists API] Not enough sets from favorite artists, adding mock data`);
-      // Take sets from MOCK_EXTERNAL_SETS but give them unique IDs
-      const mockArtistSets = MOCK_EXTERNAL_SETS
-        .filter(set => favoriteArtists.includes(set.artist_name))
-        .map(set => ({
-          ...set,
-          id: `mock-favorite-${set.id}-${Math.random().toString(36).substring(2, 7)}`,
-          inserted_at: new Date().toISOString()
-        }));
-      artistSets = [...artistSets, ...mockArtistSets];
+      console.log(`[Favorite-Artists API] Not enough sets from favorite artists (${artistSets.length}), returning available results`);
     }
     
     // Create a map to group sets by artist
@@ -848,20 +664,10 @@ router.get('/api/sets/by-artist/favorites', async (req, res) => {
     // Shuffle and return artists with their sets
     console.log(`[Favorite-Artists API] Returning ${artistsArray.length} favorite artists`);
     return res.json(artistsArray.slice(0, 6));
-  } catch (error: any) {
+    } catch (error: any) {
     console.error('[Favorite-Artists API] Error:', error.message);
-    // Return some mock data for favorite artists in case of error
-    const defaultArtists = ['Carl Cox', 'David Guetta', 'Martin Garrix', 'Armin van Buuren', 'Solomun'];
-    const mockFavorites = defaultArtists.map((artist: string) => ({
-      artist_name: artist,
-      id: `artist-${artist.toLowerCase().replace(/\s+/g, '-')}`,
-      cover_image: 'https://via.placeholder.com/300x300?text=' + encodeURIComponent(artist),
-      sets: [],
-      genre: 'Electronic',
-      popularity: 100,
-      source: 'mock'
-    }));
-    return res.json(mockFavorites);
+    // On error, return an empty array
+    return res.json([]);
   }
 });
 
@@ -880,15 +686,8 @@ router.get('/api/recommendations', async (req, res) => {
     // Get a random selection from trending sets
     const randomTrendingSets = shuffleArray(trendingSets).slice(0, 6);
     
-    // Get some unique mock sets with modified timestamps to make them appear more recent
-    const recentMockSets = MOCK_EXTERNAL_SETS.map(set => ({
-      ...set,
-      id: `recent-${set.id}-${Math.random().toString(36).substring(2, 7)}`,
-      inserted_at: new Date().toISOString()
-    }));
-    
-    // Combine and shuffle the sets
-    const recommendations = shuffleArray([...randomTrendingSets, ...recentMockSets]);
+    // Combine and shuffle the sets (no mock data)
+    const recommendations = shuffleArray(randomTrendingSets);
     
     // Ensure title and artist_name are present in all sets
     const validRecommendations = recommendations.filter(set => set.title && set.artist_name);
@@ -918,8 +717,8 @@ router.get('/api/recommendations', async (req, res) => {
     return res.json(setsWithImages.slice(0, 10));
   } catch (error: any) {
     console.error('[Recommendations API] Error:', error.message);
-    // Return mock data in case of error
-    return res.json(shuffleArray(MOCK_EXTERNAL_SETS));
+    // On error, return 500 with a JSON error message
+    return res.status(500).json({ error: 'Error generating recommendations' });
   }
 });
 
