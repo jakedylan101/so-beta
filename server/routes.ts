@@ -1453,22 +1453,47 @@ router.get("/api/search", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Query parameter 'q' is required" });
   }
 
+  
+
   // Warn if expected env vars are missing
   if (!process.env.YOUTUBE_API_KEY) console.warn('YOUTUBE_API_KEY not set');
   if (!process.env.SOUNDCLOUD_CLIENT_ID) console.warn('SOUNDCLOUD_CLIENT_ID not set');
+  if (!process.env.SOUNDCLOUD_CLIENT_SECRET) console.warn('SOUNDCLOUD_CLIENT_SECRET not set');
   if (!process.env.SETLIST_FM_API_KEY && !process.env.SETLISTFM_API_KEY) console.warn('SETLIST_FM_API_KEY not set');
 
   try {
+
+    const soundCloudTokenRes = await fetch(`https://api.soundcloud.com/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.SOUNDCLOUD_CLIENT_ID || '',
+        client_secret: process.env.SOUNDCLOUD_CLIENT_SECRET || '',
+        grant_type: 'client_credentials',
+      }),
+    });
+
+    const soundCloudToken = soundCloudTokenRes.ok ? (await soundCloudTokenRes.json()).access_token : null;
+
+    if(!soundCloudToken) {
+      console.warn('Failed to obtain SoundCloud access token');
+    }
+
+
+
     const youtubeUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${process.env.YOUTUBE_API_KEY}`;
-    const soundcloudUrl = `https://api.soundcloud.com/tracks?q=${encodeURIComponent(query)}&client_id=${process.env.SOUNDCLOUD_CLIENT_ID}&limit=10`;
+    const soundcloudUrl = `https://api.soundcloud.com/tracks?q=${encodeURIComponent(query)}&limit=10`;
     const setlistUrl = `https://api.setlist.fm/rest/1.0/search/setlists?artistName=${encodeURIComponent(query)}&p=1`;
 
     // Prepare Spotify and Mixcloud calls
     const spotifyInstance = spotifyService();
-    const mixcloudUrl = `https://api.mixcloud.com/search/?q=${encodeURIComponent(query)}&type=users&limit=10`;
+    const mixcloudUrl = `https://api.mixcloud.com/search/?q=${encodeURIComponent(query)}&type=cloudcast&limit=10
+    `;
 
     const youtubePromise = fetch(youtubeUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`YouTube HTTP ${r.status}`)));
-    const soundcloudPromise = fetch(soundcloudUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`SoundCloud HTTP ${r.status}`)));
+    const soundcloudPromise = fetch(soundcloudUrl, { headers: { Authorization: `Bearer ${soundCloudToken}` } }).then(r => r.ok ? r.json() : Promise.reject(new Error(`SoundCloud HTTP ${r.status}`)));
     const setlistPromise = fetch(setlistUrl, { headers: { Accept: 'application/json', 'x-api-key': process.env.SETLIST_FM_API_KEY || process.env.SETLISTFM_API_KEY || '' } }).then(r => r.ok ? r.json() : Promise.reject(new Error(`Setlist HTTP ${r.status}`)));
     const mixcloudPromise = fetch(mixcloudUrl).then(r => r.ok ? r.json() : Promise.reject(new Error(`Mixcloud HTTP ${r.status}`)));
     const spotifyPromise = spotifyInstance ? spotifyInstance.search(query, ['artist'], 5) : Promise.resolve({ success: false, error: 'Spotify not configured' });
@@ -1486,6 +1511,8 @@ router.get("/api/search", async (req: Request, res: Response) => {
     const setListFmRes = setlistSettled.status === 'fulfilled' ? setlistSettled.value : null;
     const mixcloudRes = mixcloudSettled.status === 'fulfilled' ? mixcloudSettled.value : null;
     const spotifyRes = spotifySettled.status === 'fulfilled' ? spotifySettled.value : null;
+
+    console.log('Got Search Results from SoundCloud: ', soundcloudRes ? 'yes' : 'no');
 
     const youtubeSets = youtubeRes?.items?.map((item: any) => ({
       id: `yt--${item.id.videoId}`,
