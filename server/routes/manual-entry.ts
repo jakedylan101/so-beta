@@ -206,7 +206,6 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
         },
         body: JSON.stringify({
           textQuery: query,
-          includedType: 'establishment',
           maxResultCount: 5
         })
       });
