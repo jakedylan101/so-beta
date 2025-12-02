@@ -3,6 +3,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { authMiddleware } from "./middleware";
 import artistSearchRouter from "./routes/artist-search";
 import trendingSetsRouter from "./routes/trending-sets";
+import manualEntryRouter from "./routes/manual-entry";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -52,6 +53,8 @@ const apiKeys = {
   soundcloud: process.env.SOUNDCLOUD_CLIENT_ID ? true : false,
   youtube: process.env.YOUTUBE_API_KEY ? true : false,
   mixcloud: process.env.MIXCLOUD_API_KEY ? true : false,
+  googleMaps: process.env.GOOGLE_MAPS_API_KEY ? true : false,
+  spotify: process.env.SPOTIFY_CLIENT_ID ? true : false,
 };
 
 console.log("API Keys loaded:");
@@ -60,6 +63,8 @@ console.log(`- SETLISTFM_API_KEY present: ${apiKeys.setlistFmAlt}`);
 console.log(`- SOUNDCLOUD_CLIENT_ID present: ${apiKeys.soundcloud}`);
 console.log(`- YOUTUBE_API_KEY present: ${apiKeys.youtube}`);
 console.log(`- MIXCLOUD_API_KEY present: ${apiKeys.mixcloud}`);
+console.log(`- GOOGLE_MAPS_API_KEY present: ${apiKeys.googleMaps}`);
+console.log(`- SPOTIFY_CLIENT_ID present: ${apiKeys.spotify}`);
 
 // Log the environment variables with sensitive values hidden
 console.log("All environment variables related to API keys:");
@@ -152,6 +157,9 @@ app.use(artistSearchRouter);
 
 // Register trending sets router
 app.use(trendingSetsRouter);
+
+// Register manual entry router
+app.use(manualEntryRouter);
 
 // Register the main routes file which contains API endpoints for sets
 registerRoutes(app);
