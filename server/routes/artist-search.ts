@@ -179,10 +179,30 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
 
     const artistsWithRecentSets: ArtistSearchResult[] = [];
 
-    // First attempt - search for setlists directly
+    // Smart query parsing: extract artist name from query
+    // If query has 3+ words, assume first 1-2 words are artist, rest are venue/event
+    const queryWords = query.toLowerCase().split(/\s+/);
+    let artistSearchTerm = query;
+    let venueFilterTerms: string[] = [];
+    
+    if (queryWords.length >= 3) {
+      // Try to intelligently detect artist vs venue
+      // Common patterns:
+      // - "avalon emerson hart plaza" → artist: "avalon emerson", venue: "hart plaza"
+      // - "amelie lens dekmantel" → artist: "amelie lens", venue: "dekmantel"
+      // - "dj name the venue" → artist: "dj name", venue: "the venue"
+      
+      // Use first 2 words as artist, rest as venue
+      artistSearchTerm = queryWords.slice(0, 2).join(' ');
+      venueFilterTerms = queryWords.slice(2);
+      
+      console.log(`Smart parsing: artist="${artistSearchTerm}", venue filter="${venueFilterTerms.join(' ')}"`);
+    }
+
+    // First attempt - search for setlists directly using ONLY artist name
     try {
       const setlistSearchResponse = await fetch(
-        `https://api.setlist.fm/rest/1.0/search/setlists?artistName=${encodeURIComponent(query)}&p=1`,
+        `https://api.setlist.fm/rest/1.0/search/setlists?artistName=${encodeURIComponent(artistSearchTerm)}&p=1`,
         {
           headers: {
             "Accept": "application/json",
@@ -244,7 +264,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
 
       try {
         const artistResponse = await fetch(
-          `https://api.setlist.fm/rest/1.0/search/artists?artistName=${encodeURIComponent(query)}&sort=relevance`,
+          `https://api.setlist.fm/rest/1.0/search/artists?artistName=${encodeURIComponent(artistSearchTerm)}&sort=relevance`,
           {
             headers: {
               "Accept": "application/json",
@@ -508,11 +528,11 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     
     // If we still don't have many results, add some generic Mixcloud results
     if (artistsWithRecentSets.length < 15) {
-      console.log(`Searching Mixcloud for: ${query}`);
+      console.log(`Searching Mixcloud for: ${artistSearchTerm}`);
       try {
         // Mixcloud doesn't require an API key for basic searches
         const mixcloudResponse = await fetch(
-          `https://api.mixcloud.com/search/?q=${encodeURIComponent(query)}&type=user&limit=15`
+          `https://api.mixcloud.com/search/?q=${encodeURIComponent(artistSearchTerm)}&type=user&limit=15`
         );
         
         if (mixcloudResponse.ok) {
@@ -552,9 +572,9 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     }
 
     // Add SoundCloud results
-    console.log(`Searching SoundCloud for: ${query}`);
+    console.log(`Searching SoundCloud for: ${artistSearchTerm}`);
     try {
-      const soundcloudResults = await fetchSoundCloudResults(query);
+      const soundcloudResults = await fetchSoundCloudResults(artistSearchTerm);
       console.log(`Found ${soundcloudResults.length} results from SoundCloud`);
       
       // Map SoundCloud results to match our ArtistSearchResult format
@@ -575,10 +595,38 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       console.error('Error fetching from SoundCloud:', error);
     }
 
+    // Apply venue/event filtering if we have filter terms
+    let filteredResults = artistsWithRecentSets;
+    
+    if (venueFilterTerms.length > 0) {
+      console.log(`Applying venue filter for: ${venueFilterTerms.join(' ')}`);
+      
+      filteredResults = artistsWithRecentSets.filter(result => {
+        const venueLower = (result.venueName || '').toLowerCase();
+        const cityLower = (result.city || '').toLowerCase();
+        const eventLower = (result.eventName || '').toLowerCase();
+        const combinedText = `${venueLower} ${cityLower} ${eventLower}`;
+        
+        // Check if ALL venue filter terms appear in the combined text
+        // This ensures "hart plaza" matches only if both "hart" AND "plaza" are present
+        const allTermsMatch = venueFilterTerms.every(term => 
+          combinedText.includes(term)
+        );
+        
+        if (allTermsMatch) {
+          console.log(`  ✓ Match: ${result.artistName} at ${result.venueName || 'N/A'}, ${result.city || 'N/A'}`);
+        }
+        
+        return allTermsMatch;
+      });
+      
+      console.log(`Filtered from ${artistsWithRecentSets.length} to ${filteredResults.length} results`);
+    }
+
     // Deduplicate results
     const deduplicatedResults = Array.from(
       new Map(
-        artistsWithRecentSets.map(item => [
+        filteredResults.map(item => [
           `${item.artistName.toLowerCase()}|${item.eventDate}|${item.city?.toLowerCase() || ''}`,
           item,
         ])
