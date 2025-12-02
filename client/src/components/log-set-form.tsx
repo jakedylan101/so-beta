@@ -13,6 +13,7 @@ import { useLocation } from 'wouter';
 import { useAppContext } from '@/context/app-context';
 import { useRankingModalContext } from '@/context/ranking-modal-context';
 import { ArtistSearchDropdown } from './artist-search-dropdown';
+import { ManualEntryForm } from './manual-entry-form';
 import { format, parseISO, isValid } from 'date-fns';
 import analytics from '@/services/analytics';
 import { parse, format as formatDate } from 'date-fns';
@@ -47,6 +48,7 @@ export function LogSetForm() {
   const [uploadedMediaUrls, setUploadedMediaUrls] = useState<string[]>([]);
   const [isDropdownActive, setIsDropdownActive] = useState(false);
   const [artistSelected, setArtistSelected] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   
   // Using the singleton Supabase client from @/lib/supabase
 
@@ -258,7 +260,19 @@ export function LogSetForm() {
 
   // Handle artist selection from dropdown - completely revamped for dropdown issues
   const handleArtistSelect = (artist: {artistName: string; venueName?: string; eventName?: string; date?: string}) => {
+    // Check if this is a manual entry (no venue name means user clicked "Enter Manually")
+    if (!artist.venueName && !artist.date) {
+      // This is a manual entry trigger
+      setShowManualEntry(true);
+      setArtistSelected(false);
+      setIsDropdownActive(false);
+      setSelectedArtist(artist.artistName);
+      return;
+    }
+
+    // Normal selection from search results
     setArtistSelected(true);
+    setShowManualEntry(false);
     setSelectedArtist(artist.artistName);
     
     form.setValue('artist', artist.artistName);
@@ -266,6 +280,37 @@ export function LogSetForm() {
     if (artist.eventName) form.setValue('event_name', artist.eventName);
     if (artist.date) form.setValue('event_date', artist.date); // ISO YYYY-MM-DD
     /* leave experience_date untouched - let user set it */
+  };
+
+  // Handle manual entry completion
+  const handleManualEntryComplete = (data: {
+    artistName: string;
+    venueName: string;
+    eventName?: string;
+    eventDate: string;
+    city: string;
+    country?: string;
+  }) => {
+    setShowManualEntry(false);
+    setArtistSelected(true);
+    setSelectedArtist(data.artistName);
+    
+    form.setValue('artist', data.artistName);
+    form.setValue('venue_name', data.venueName);
+    if (data.eventName) form.setValue('event_name', data.eventName);
+    form.setValue('event_date', data.eventDate);
+    
+    toast({
+      title: 'Event Added',
+      description: 'Manual event entry ready to log',
+    });
+  };
+
+  // Handle manual entry cancel
+  const handleManualEntryCancel = () => {
+    setShowManualEntry(false);
+    setSelectedArtist('');
+    form.setValue('artist', '');
   };
   
   const handleCloudinaryUpload = async (file: File): Promise<string | null> => {
@@ -393,7 +438,7 @@ export function LogSetForm() {
                     className="w-full bg-zinc-900 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-white"
                   />
                 </FormControl>
-                {isDropdownActive && !artistSelected && (
+                {isDropdownActive && !artistSelected && !showManualEntry && (
                   <ArtistSearchDropdown
                     searchTerm={selectedArtist || field.value}
                     onSelect={handleArtistSelect}
@@ -404,6 +449,15 @@ export function LogSetForm() {
             </FormItem>
           )}
         />
+        
+        {/* Manual Entry Form */}
+        {showManualEntry && (
+          <ManualEntryForm
+            initialArtistName={selectedArtist}
+            onComplete={handleManualEntryComplete}
+            onCancel={handleManualEntryCancel}
+          />
+        )}
         
         {/* Venue Field */}
         <FormField
