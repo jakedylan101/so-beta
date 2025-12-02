@@ -43,6 +43,14 @@ export function ManualEntryForm({
     city: string;
     country: string;
   } | null>(null);
+  const [venueOptions, setVenueOptions] = useState<Array<{
+    venueName: string;
+    address: string;
+    city: string;
+    country: string;
+    placeId: string;
+  }>>([]);
+  const [showVenueDropdown, setShowVenueDropdown] = useState(false);
 
   // Validate artist when name changes
   useEffect(() => {
@@ -82,6 +90,8 @@ export function ManualEntryForm({
     if (!venueName || venueName.length < 2) {
       setVenueValidated(null);
       setVenueValidationError(null);
+      setShowVenueDropdown(false);
+      setVenueOptions([]);
       return;
     }
 
@@ -109,17 +119,29 @@ export function ManualEntryForm({
         console.log('Venue validation response:', data);
         
         if (data.success && data.validated) {
-          setVenueValidated(true);
-          setVenueValidationError(null);
-          setValidatedVenueData({
-            name: data.venueName,
-            city: data.city || city,
-            country: data.country || ''
-          });
-          // Auto-fill city and country if not set
-          if (!city && data.city) setCity(data.city);
-          if (!country && data.country) setCountry(data.country);
+          // Check if multiple options are available
+          if (data.multipleOptions && data.options && data.options.length > 1) {
+            setVenueOptions(data.options);
+            setShowVenueDropdown(true);
+            setVenueValidated(null); // Pending selection
+            setVenueValidationError(null);
+            console.log(`Found ${data.options.length} venue options, showing dropdown`);
+          } else {
+            // Single result - auto-select
+            setShowVenueDropdown(false);
+            setVenueValidated(true);
+            setVenueValidationError(null);
+            setValidatedVenueData({
+              name: data.venueName,
+              city: data.city || city,
+              country: data.country || ''
+            });
+            // Auto-fill city and country if not set
+            if (!city && data.city) setCity(data.city);
+            if (!country && data.country) setCountry(data.country);
+          }
         } else {
+          setShowVenueDropdown(false);
           setVenueValidated(false);
           setValidatedVenueData(null);
           // Store error message for display
@@ -142,6 +164,27 @@ export function ManualEntryForm({
 
     return () => clearTimeout(timer);
   }, [venueName, city]);
+
+  // Handle venue selection from dropdown
+  const handleVenueSelect = (option: {
+    venueName: string;
+    address: string;
+    city: string;
+    country: string;
+    placeId: string;
+  }) => {
+    setShowVenueDropdown(false);
+    setVenueValidated(true);
+    setValidatedVenueData({
+      name: option.venueName,
+      city: option.city,
+      country: option.country
+    });
+    // Update form fields
+    setVenueName(option.venueName);
+    if (option.city) setCity(option.city);
+    if (option.country) setCountry(option.country);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,6 +286,26 @@ export function ManualEntryForm({
             <p className="text-xs text-green-400 mt-1">
               ✓ Validated: {validatedVenueData.name}
             </p>
+          )}
+          {showVenueDropdown && venueOptions.length > 0 && (
+            <div className="mt-2 border border-zinc-700 rounded-lg bg-zinc-800 max-h-48 overflow-auto">
+              <p className="text-xs text-gray-400 px-3 py-2 border-b border-zinc-700">
+                Multiple venues found. Please select one:
+              </p>
+              {venueOptions.map((option, index) => (
+                <button
+                  key={option.placeId || index}
+                  type="button"
+                  onClick={() => handleVenueSelect(option)}
+                  className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-b-0 transition-colors"
+                >
+                  <div className="font-medium text-white">{option.venueName}</div>
+                  <div className="text-xs text-gray-400">
+                    {option.address || `${option.city}${option.country ? `, ${option.country}` : ''}`}
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

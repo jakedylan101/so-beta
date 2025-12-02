@@ -221,12 +221,12 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
       console.log(`Google Places API (New) response - places count: ${data.places?.length || 0}`);
 
       if (data.places && data.places.length > 0) {
-        // Find the best match - use more lenient matching
+        // Find all matching venues - use more lenient matching
         const venueLower = venueName.toLowerCase().trim();
         const venueWords = venueLower.split(/\s+/);
         
-        // Try to find exact or partial match
-        let bestMatch = data.places.find((place: any) => {
+        // Find all matches (not just the first one)
+        const matchingPlaces = data.places.filter((place: any) => {
           const nameLower = (place.displayName?.text || '').toLowerCase();
           // Exact match
           if (nameLower === venueLower) return true;
@@ -237,24 +237,18 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
           return false;
         });
 
-        // If no match found, use the first result (Google's best guess)
-        if (!bestMatch) {
-          bestMatch = data.places[0];
-          console.log(`No exact match found, using first result: ${bestMatch.displayName?.text}`);
-        }
+        // If no matches found, use all results (Google's best guesses)
+        const placesToReturn = matchingPlaces.length > 0 ? matchingPlaces : data.places;
 
-        if (bestMatch) {
-          const placeName = bestMatch.displayName?.text || venueName;
-          console.log(`✓ Validated venue: ${placeName} (searched for: ${venueName})`);
-          
-          // Extract city and country from addressComponents
+        // Helper function to extract city and country from a place
+        const extractLocationData = (place: any) => {
           let parsedCity = city || '';
           let parsedCountry = '';
-          const address = bestMatch.formattedAddress || '';
+          const address = place.formattedAddress || '';
           
-          if (bestMatch.addressComponents && Array.isArray(bestMatch.addressComponents)) {
+          if (place.addressComponents && Array.isArray(place.addressComponents)) {
             // Find city (locality) and country
-            for (const component of bestMatch.addressComponents) {
+            for (const component of place.addressComponents) {
               if (component.types?.includes('locality')) {
                 parsedCity = component.longText || component.shortText || parsedCity;
               }
@@ -278,18 +272,54 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
             }
           }
           
+          return { parsedCity, parsedCountry, address };
+        };
+
+        // If only one result, return it directly (backward compatible)
+        if (placesToReturn.length === 1) {
+          const place = placesToReturn[0];
+          const placeName = place.displayName?.text || venueName;
+          const { parsedCity, parsedCountry, address } = extractLocationData(place);
+          
+          console.log(`✓ Validated venue: ${placeName} (searched for: ${venueName})`);
+          
           return res.json({
             success: true,
             validated: true,
             venueName: placeName,
-            placeId: bestMatch.id,
+            placeId: place.id,
             address: address,
             city: parsedCity,
             country: parsedCountry,
-            latitude: bestMatch.location?.latitude,
-            longitude: bestMatch.location?.longitude
+            latitude: place.location?.latitude,
+            longitude: place.location?.longitude
           });
         }
+
+        // Multiple results - return array for user to choose
+        const options = placesToReturn.map((place: any) => {
+          const placeName = place.displayName?.text || venueName;
+          const { parsedCity, parsedCountry, address } = extractLocationData(place);
+          
+          return {
+            venueName: placeName,
+            placeId: place.id,
+            address: address,
+            city: parsedCity,
+            country: parsedCountry,
+            latitude: place.location?.latitude,
+            longitude: place.location?.longitude
+          };
+        });
+
+        console.log(`✓ Found ${options.length} matching venues for "${venueName}"`);
+        
+        return res.json({
+          success: true,
+          validated: true,
+          multipleOptions: true,
+          options: options
+        });
       } else {
         console.log(`No results found for venue: ${venueName}`);
       }
