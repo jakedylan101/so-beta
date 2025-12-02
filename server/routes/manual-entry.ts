@@ -193,29 +193,42 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
       query = `${venueName} ${city}`;
     }
 
-    // Search for place using Places API Text Search
-    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&type=establishment&key=${GOOGLE_MAPS_API_KEY}`;
+    // Use NEW Google Places API (not legacy)
+    const searchUrl = `https://places.googleapis.com/v1/places:searchText`;
     
     try {
-      const response = await fetch(searchUrl);
+      const response = await fetch(searchUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location'
+        },
+        body: JSON.stringify({
+          textQuery: query,
+          includedType: 'establishment',
+          maxResultCount: 5
+        })
+      });
       
       if (!response.ok) {
-        throw new Error(`Google Maps API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Google Places API error: ${response.status} - ${errorText}`);
+        throw new Error(`Google Places API error: ${response.status}`);
       }
 
       const data = await response.json();
 
-      console.log(`Google Maps API response status: ${data.status}`);
-      console.log(`Google Maps API results count: ${data.results?.length || 0}`);
+      console.log(`Google Places API (New) response - places count: ${data.places?.length || 0}`);
 
-      if (data.status === 'OK' && data.results && data.results.length > 0) {
+      if (data.places && data.places.length > 0) {
         // Find the best match - use more lenient matching
         const venueLower = venueName.toLowerCase().trim();
         const venueWords = venueLower.split(/\s+/);
         
         // Try to find exact or partial match
-        let bestMatch = data.results.find((place: any) => {
-          const nameLower = (place.name || '').toLowerCase();
+        let bestMatch = data.places.find((place: any) => {
+          const nameLower = (place.displayName?.text || '').toLowerCase();
           // Exact match
           if (nameLower === venueLower) return true;
           // Contains match (either direction)
@@ -227,48 +240,59 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
 
         // If no match found, use the first result (Google's best guess)
         if (!bestMatch) {
-          bestMatch = data.results[0];
-          console.log(`No exact match found, using first result: ${bestMatch.name}`);
+          bestMatch = data.places[0];
+          console.log(`No exact match found, using first result: ${bestMatch.displayName?.text}`);
         }
 
         if (bestMatch) {
-          console.log(`✓ Validated venue: ${bestMatch.name} (searched for: ${venueName})`);
+          const placeName = bestMatch.displayName?.text || venueName;
+          console.log(`✓ Validated venue: ${placeName} (searched for: ${venueName})`);
           
-          // Parse city and country from formatted address
-          const addressParts = bestMatch.formatted_address?.split(',') || [];
+          // Extract city and country from addressComponents
           let parsedCity = city || '';
           let parsedCountry = '';
+          const address = bestMatch.formattedAddress || '';
           
-          if (addressParts.length >= 2) {
-            // Usually format is: "Street, City, State, Country"
-            parsedCity = addressParts[addressParts.length - 3]?.trim() || addressParts[addressParts.length - 2]?.trim() || city || '';
-            parsedCountry = addressParts[addressParts.length - 1]?.trim() || '';
+          if (bestMatch.addressComponents && Array.isArray(bestMatch.addressComponents)) {
+            // Find city (locality) and country
+            for (const component of bestMatch.addressComponents) {
+              if (component.types?.includes('locality')) {
+                parsedCity = component.longText || component.shortText || parsedCity;
+              }
+              if (component.types?.includes('country')) {
+                parsedCountry = component.longText || component.shortText || '';
+              }
+            }
+          }
+          
+          // Fallback: parse from formatted address if components not available
+          if (!parsedCity || !parsedCountry) {
+            const addressParts = address.split(',');
+            if (addressParts.length >= 2) {
+              // Usually format is: "Street, City, State, Country"
+              if (!parsedCity) {
+                parsedCity = addressParts[addressParts.length - 3]?.trim() || addressParts[addressParts.length - 2]?.trim() || city || '';
+              }
+              if (!parsedCountry) {
+                parsedCountry = addressParts[addressParts.length - 1]?.trim() || '';
+              }
+            }
           }
           
           return res.json({
             success: true,
             validated: true,
-            venueName: bestMatch.name,
-            placeId: bestMatch.place_id,
-            address: bestMatch.formatted_address,
+            venueName: placeName,
+            placeId: bestMatch.id,
+            address: address,
             city: parsedCity,
             country: parsedCountry,
-            latitude: bestMatch.geometry?.location?.lat,
-            longitude: bestMatch.geometry?.location?.lng
+            latitude: bestMatch.location?.latitude,
+            longitude: bestMatch.location?.longitude
           });
         }
-      } else if (data.status === 'ZERO_RESULTS') {
-        console.log(`No results found for venue: ${venueName}`);
-      } else if (data.status === 'REQUEST_DENIED') {
-        console.error(`Google Maps API request denied. Error: ${data.error_message || 'Unknown error'}`);
-        return res.json({
-          success: true,
-          validated: false,
-          error: `Google Maps API error: ${data.error_message || 'Request denied'}`,
-          venueName
-        });
       } else {
-        console.warn(`Google Maps API returned status: ${data.status}, error: ${data.error_message || 'Unknown'}`);
+        console.log(`No results found for venue: ${venueName}`);
       }
 
       // No match found
@@ -276,15 +300,16 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
         success: true,
         validated: false,
         venueName,
-        error: data.error_message || 'Venue not found'
+        error: 'Venue not found'
       });
 
     } catch (error) {
-      console.error('Google Maps API error:', error);
+      console.error('Google Places API error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to query Google Places API';
       return res.json({
         success: true,
         validated: false,
-        error: 'Failed to query Google Maps',
+        error: errorMessage,
         venueName
       });
     }
