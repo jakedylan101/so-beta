@@ -187,16 +187,13 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
       });
     }
 
-    // Build search query
-    let query = venueName;
-    if (city) {
-      query = `${venueName} ${city}`;
-    }
-
     // Use NEW Google Places API (not legacy)
+    // Search without city first to get all matching venues, then user can choose
     const searchUrl = `https://places.googleapis.com/v1/places:searchText`;
     
     try {
+      // Search for venue name only (without city) to get all matches
+      // This allows user to see all "nowadays" venues, not just one in a specific city
       const response = await fetch(searchUrl, {
         method: 'POST',
         headers: {
@@ -205,8 +202,8 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
           'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location'
         },
         body: JSON.stringify({
-          textQuery: query,
-          maxResultCount: 5
+          textQuery: venueName, // Search venue name only, not with city
+          maxResultCount: 10 // Increased to get more options
         })
       });
       
@@ -238,7 +235,12 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
         });
 
         // If no matches found, use all results (Google's best guesses)
+        // Always return all results to give user options, even if only 1-2 match
         const placesToReturn = matchingPlaces.length > 0 ? matchingPlaces : data.places;
+        
+        // If we have 2+ results, always show dropdown (even if some don't match perfectly)
+        // This gives user choice when multiple venues exist
+        const shouldShowOptions = placesToReturn.length >= 2;
 
         // Helper function to extract city and country from a place
         const extractLocationData = (place: any) => {
@@ -275,8 +277,10 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
           return { parsedCity, parsedCountry, address };
         };
 
-        // If only one result, return it directly (backward compatible)
-        if (placesToReturn.length === 1) {
+        // If only one result AND user didn't specify a city, return it directly
+        // If user specified a city, show dropdown even for 1 result (they might want different city)
+        // If 2+ results, always show dropdown
+        if (placesToReturn.length === 1 && !city) {
           const place = placesToReturn[0];
           const placeName = place.displayName?.text || venueName;
           const { parsedCity, parsedCountry, address } = extractLocationData(place);
@@ -296,7 +300,8 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
           });
         }
 
-        // Multiple results - return array for user to choose
+        // Multiple results OR user specified city - return array for user to choose
+        // This ensures dropdown appears when there are multiple venues with same name
         const options = placesToReturn.map((place: any) => {
           const placeName = place.displayName?.text || venueName;
           const { parsedCity, parsedCountry, address } = extractLocationData(place);
