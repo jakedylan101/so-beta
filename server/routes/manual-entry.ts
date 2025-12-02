@@ -277,31 +277,9 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
           return { parsedCity, parsedCountry, address };
         };
 
-        // If only one result AND user didn't specify a city, return it directly
-        // If user specified a city, show dropdown even for 1 result (they might want different city)
-        // If 2+ results, always show dropdown
-        if (placesToReturn.length === 1 && !city) {
-          const place = placesToReturn[0];
-          const placeName = place.displayName?.text || venueName;
-          const { parsedCity, parsedCountry, address } = extractLocationData(place);
-          
-          console.log(`✓ Validated venue: ${placeName} (searched for: ${venueName})`);
-          
-          return res.json({
-            success: true,
-            validated: true,
-            venueName: placeName,
-            placeId: place.id,
-            address: address,
-            city: parsedCity,
-            country: parsedCountry,
-            latitude: place.location?.latitude,
-            longitude: place.location?.longitude
-          });
-        }
-
-        // Multiple results OR user specified city - return array for user to choose
-        // This ensures dropdown appears when there are multiple venues with same name
+        // Always return options array so dropdown appears, even with 1 result
+        // This allows user to see the address and confirm it's correct
+        // Also ensures dropdown appears when Google finds multiple venues
         const options = placesToReturn.map((place: any) => {
           const placeName = place.displayName?.text || venueName;
           const { parsedCity, parsedCountry, address } = extractLocationData(place);

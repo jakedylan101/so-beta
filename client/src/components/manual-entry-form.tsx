@@ -98,11 +98,11 @@ export function ManualEntryForm({
     const timer = setTimeout(async () => {
       setValidatingVenue(true);
       try {
-        const query = city 
-          ? `name=${encodeURIComponent(venueName)}&city=${encodeURIComponent(city)}`
-          : `name=${encodeURIComponent(venueName)}`;
+        // Don't send city parameter - we want ALL venues with this name, not filtered by city
+        // User will choose the correct one from dropdown
+        const query = `name=${encodeURIComponent(venueName)}`;
         
-        console.log(`Validating venue: ${venueName}${city ? ` in ${city}` : ''}`);
+        console.log(`Validating venue: ${venueName} (searching all locations)`);
         
         const response = await fetch(
           `/api/manual-entry/validate-venue?${query}`
@@ -119,15 +119,15 @@ export function ManualEntryForm({
         console.log('Venue validation response:', data);
         
         if (data.success && data.validated) {
-          // Check if multiple options are available
-          if (data.multipleOptions && data.options && data.options.length > 1) {
+          // Check if options array is available (always show dropdown, even with 1 option)
+          if (data.multipleOptions && data.options && data.options.length > 0) {
             setVenueOptions(data.options);
             setShowVenueDropdown(true);
             setVenueValidated(null); // Pending selection
             setVenueValidationError(null);
-            console.log(`Found ${data.options.length} venue options, showing dropdown`);
-          } else {
-            // Single result - auto-select
+            console.log(`Found ${data.options.length} venue option(s), showing dropdown`);
+          } else if (data.venueName) {
+            // Fallback: single result without options array (backward compatibility)
             setShowVenueDropdown(false);
             setVenueValidated(true);
             setVenueValidationError(null);
