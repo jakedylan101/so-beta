@@ -295,14 +295,16 @@ export function LogSetForm() {
     setArtistSelected(true);
     setSelectedArtist(data.artistName);
     
+    // Populate all form fields
     form.setValue('artist', data.artistName);
     form.setValue('venue_name', data.venueName);
     if (data.eventName) form.setValue('event_name', data.eventName);
     form.setValue('event_date', data.eventDate);
+    // Note: city and country are not in the form schema, but event data is saved
     
     toast({
       title: 'Event Added',
-      description: 'Manual event entry ready to log',
+      description: 'Event saved and ready to log. It will appear in search results.',
     });
   };
 

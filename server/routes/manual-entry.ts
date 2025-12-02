@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
 import { spotifyService } from '../services';
+import { AuthenticatedRequest, requireAuth } from '../middleware';
+import { supabaseAdmin, getUserClient } from '../supabase';
 
 const router = Router();
 
@@ -332,6 +334,112 @@ router.get('/api/manual-entry/validate-venue', async (req: Request, res: Respons
       success: false,
       error: 'Failed to validate venue',
       validated: false
+    });
+  }
+});
+
+/**
+ * Save manual event to database so it can be searched
+ * POST /api/manual-entry/create
+ */
+router.post('/api/manual-entry/create', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { artistName, venueName, eventName, eventDate, city, country } = req.body;
+
+    if (!artistName || !venueName || !eventDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Artist name, venue name, and event date are required'
+      });
+    }
+
+    console.log(`Creating manual event: ${artistName} at ${venueName} on ${eventDate}`);
+
+    // Create canonical set in database (this makes it searchable)
+    // Use the same logic as findOrCreateSet but adapted for manual entry
+    const admin = supabaseAdmin;
+    if (!admin) {
+      return res.status(500).json({ success: false, error: 'Database not available' });
+    }
+
+    // Check if set already exists
+    const { data: existing, error: findError } = await admin
+      .from('sets')
+      .select('id')
+      .eq('artist_name', artistName)
+      .eq('location_name', venueName)
+      .eq('event_date', eventDate)
+      .maybeSingle();
+
+    if (findError) {
+      console.error('Error finding existing set:', findError);
+      return res.status(500).json({ success: false, error: 'Database error' });
+    }
+
+    if (existing) {
+      console.log(`Event already exists with ID: ${existing.id}`);
+      return res.json({
+        success: true,
+        setId: existing.id,
+        message: 'Event already exists'
+      });
+    }
+
+    // Get user's profile ID for created_by
+    const userClient = getUserClient(req.headers.authorization!.split(' ')[1]);
+    const { data: profile } = await userClient
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (!profile) {
+      return res.status(400).json({ success: false, error: 'User profile not found' });
+    }
+
+    // Create new canonical set
+    const { data: newSet, error: createError } = await admin
+      .from('sets')
+      .insert({
+        artist_name: artistName,
+        location_name: venueName,
+        event_name: eventName || null,
+        event_date: eventDate,
+        city: city || null,
+        country: country || null,
+        user_id: userId,
+        created_by: profile.id,
+        source: 'manual_entry',
+        // Set default values for required fields
+        listened_date: eventDate, // Use event date as default
+        rating: 'neutral' // Default rating
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating set:', createError);
+      return res.status(500).json({ success: false, error: 'Failed to create event' });
+    }
+
+    console.log(`✓ Created manual event with ID: ${newSet.id}`);
+
+    return res.json({
+      success: true,
+      setId: newSet.id,
+      message: 'Event created successfully'
+    });
+
+  } catch (error) {
+    console.error('Error creating manual event:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create event'
     });
   }
 });

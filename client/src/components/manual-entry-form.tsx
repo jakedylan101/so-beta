@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { fetchWithAuth } from '@/lib/api/fetchWithAuth';
 
 interface ManualEntryFormProps {
   initialArtistName?: string;
@@ -186,7 +187,9 @@ export function ManualEntryForm({
     if (option.country) setCountry(option.country);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!artistName || !venueName || !eventDate || !city) {
@@ -198,14 +201,64 @@ export function ManualEntryForm({
       return;
     }
 
-    onComplete({
-      artistName: validatedArtistName || artistName,
-      venueName: validatedVenueData?.name || venueName,
-      eventName: eventName || undefined,
-      eventDate: eventDate,
-      city: validatedVenueData?.city || city,
-      country: validatedVenueData?.country || country || undefined
-    });
+    setIsSaving(true);
+
+    try {
+      // Save event to database first
+      const response = await fetchWithAuth('/api/manual-entry/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          artistName: validatedArtistName || artistName,
+          venueName: validatedVenueData?.name || venueName,
+          eventName: eventName || undefined,
+          eventDate: eventDate,
+          city: validatedVenueData?.city || city,
+          country: validatedVenueData?.country || country || undefined
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save event');
+      }
+
+      // Event saved successfully, now complete the form
+      onComplete({
+        artistName: validatedArtistName || artistName,
+        venueName: validatedVenueData?.name || venueName,
+        eventName: eventName || undefined,
+        eventDate: eventDate,
+        city: validatedVenueData?.city || city,
+        country: validatedVenueData?.country || country || undefined
+      });
+
+      toast({
+        title: 'Event Saved',
+        description: 'Event has been saved and is now searchable',
+      });
+    } catch (error) {
+      console.error('Error saving event:', error);
+      toast({
+        title: 'Error Saving Event',
+        description: error instanceof Error ? error.message : 'Failed to save event. You can still log the set.',
+        variant: 'destructive'
+      });
+      // Still complete the form even if save fails
+      onComplete({
+        artistName: validatedArtistName || artistName,
+        venueName: validatedVenueData?.name || venueName,
+        eventName: eventName || undefined,
+        eventDate: eventDate,
+        city: validatedVenueData?.city || city,
+        country: validatedVenueData?.country || country || undefined
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -296,7 +349,14 @@ export function ManualEntryForm({
                 <button
                   key={option.placeId || index}
                   type="button"
-                  onClick={() => handleVenueSelect(option)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleVenueSelect(option);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevent input blur
+                  }}
                   className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-b-0 transition-colors"
                 >
                   <div className="font-medium text-white">{option.venueName}</div>
@@ -367,9 +427,10 @@ export function ManualEntryForm({
         <div className="flex gap-3 pt-2">
           <Button
             type="submit"
-            className="flex-1 bg-green-500 text-black hover:bg-green-600"
+            disabled={isSaving}
+            className="flex-1 bg-green-500 text-black hover:bg-green-600 disabled:opacity-50"
           >
-            Add Event
+            {isSaving ? 'Saving...' : 'Add Event'}
           </Button>
           <Button
             type="button"

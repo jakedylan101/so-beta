@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
+import { supabaseAdmin } from '../supabase';
 
 const router = Router();
 
@@ -593,6 +594,38 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       artistsWithRecentSets.push(...mappedSoundCloudResults);
     } catch (error) {
       console.error('Error fetching from SoundCloud:', error);
+    }
+
+    // Search database for manual events and logged sets
+    console.log(`Searching database for: ${artistSearchTerm}`);
+    try {
+      if (supabaseAdmin) {
+        const { data: dbSets, error: dbError } = await supabaseAdmin
+          .from('sets')
+          .select('id, artist_name, location_name, event_name, event_date, city, country, source')
+          .ilike('artist_name', `%${artistSearchTerm}%`)
+          .order('event_date', { ascending: false })
+          .limit(10);
+
+        if (!dbError && dbSets && dbSets.length > 0) {
+          console.log(`Found ${dbSets.length} results from database`);
+          
+          const mappedDbResults = dbSets.map(set => ({
+            id: `db-${set.id}`,
+            artistName: set.artist_name,
+            venueName: set.location_name || 'Unknown Venue',
+            eventDate: set.event_date || '',
+            eventName: set.event_name || '',
+            city: set.city || '',
+            country: set.country || '',
+            source: set.source || 'database'
+          }));
+          
+          artistsWithRecentSets.push(...mappedDbResults);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching database:', error);
     }
 
     // Apply venue/event filtering if we have filter terms
