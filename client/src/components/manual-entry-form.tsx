@@ -37,6 +37,7 @@ export function ManualEntryForm({
 
   const [validatingVenue, setValidatingVenue] = useState(false);
   const [venueValidated, setVenueValidated] = useState<boolean | null>(null);
+  const [venueValidationError, setVenueValidationError] = useState<string | null>(null);
   const [validatedVenueData, setValidatedVenueData] = useState<{
     name: string;
     city: string;
@@ -80,6 +81,7 @@ export function ManualEntryForm({
   useEffect(() => {
     if (!venueName || venueName.length < 2) {
       setVenueValidated(null);
+      setVenueValidationError(null);
       return;
     }
 
@@ -90,13 +92,25 @@ export function ManualEntryForm({
           ? `name=${encodeURIComponent(venueName)}&city=${encodeURIComponent(city)}`
           : `name=${encodeURIComponent(venueName)}`;
         
+        console.log(`Validating venue: ${venueName}${city ? ` in ${city}` : ''}`);
+        
         const response = await fetch(
           `/api/manual-entry/validate-venue?${query}`
         );
+        
+        if (!response.ok) {
+          console.error(`Venue validation HTTP error: ${response.status} ${response.statusText}`);
+          setVenueValidated(false);
+          setValidatedVenueData(null);
+          return;
+        }
+        
         const data = await response.json();
+        console.log('Venue validation response:', data);
         
         if (data.success && data.validated) {
           setVenueValidated(true);
+          setVenueValidationError(null);
           setValidatedVenueData({
             name: data.venueName,
             city: data.city || city,
@@ -108,10 +122,19 @@ export function ManualEntryForm({
         } else {
           setVenueValidated(false);
           setValidatedVenueData(null);
+          // Store error message for display
+          if (data.error) {
+            setVenueValidationError(data.error);
+            console.warn(`Venue validation failed: ${data.error}`);
+          } else {
+            setVenueValidationError(null);
+          }
         }
-      } catch (error) {
+        } catch (error) {
         console.error('Venue validation error:', error);
         setVenueValidated(false);
+        setValidatedVenueData(null);
+        setVenueValidationError(error instanceof Error ? error.message : 'Network error');
       } finally {
         setValidatingVenue(false);
       }
@@ -211,7 +234,9 @@ export function ManualEntryForm({
           </div>
           {venueValidated === false && (
             <p className="text-xs text-red-400 mt-1">
-              Error validating venue. Will be added as manual entry.
+              {venueValidationError 
+                ? `Error: ${venueValidationError}. Will be added as manual entry.`
+                : 'Error validating venue. Will be added as manual entry.'}
             </p>
           )}
           {venueValidated === true && validatedVenueData && (
