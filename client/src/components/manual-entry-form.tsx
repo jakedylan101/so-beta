@@ -275,8 +275,14 @@ export function ManualEntryForm({
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        console.error('❌ Failed to save event:', data);
         throw new Error(data.error || 'Failed to save event');
       }
+
+      console.log('✅ Event saved successfully:', data);
+      console.log('   Event ID:', data.setId);
+      console.log('   Artist:', validatedArtistName || artistName);
+      console.log('   Venue:', validatedVenueData?.name || venueName);
 
       // Event saved successfully, now complete the form
       // Use setTimeout to ensure state updates complete before calling onComplete

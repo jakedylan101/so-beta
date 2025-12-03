@@ -301,12 +301,13 @@ export function LogSetForm() {
     setArtistSelected(true);
     
     // Build new form values object
+    // IMPORTANT: experience_date is required, so set it to event_date if not provided
     const newFormValues: FormValues = {
       artist: data.artistName,
       venue_name: data.venueName,
       event_name: data.eventName || '',
       event_date: data.eventDate,
-      experience_date: currentFormValues.experience_date || '',
+      experience_date: currentFormValues.experience_date || data.eventDate, // Default to event_date if empty
       rating: currentFormValues.rating || undefined,
       friends_tags: currentFormValues.friends_tags || '',
       notes: currentFormValues.notes || '',
@@ -315,26 +316,72 @@ export function LogSetForm() {
     
     console.log('Resetting form with values:', newFormValues);
     
-    // Use form.reset() to set ALL values at once - this is more reliable than setValue
-    form.reset(newFormValues);
-    
-    // Also ensure state is in sync
+    // Update state FIRST to ensure it's in sync
     setSelectedArtist(data.artistName);
+    setArtistSelected(true);
+    
+    // Use form.reset() to set ALL values at once
+    // This is the most reliable way to update all form fields
+    form.reset(newFormValues, {
+      keepDefaultValues: false,
+      keepErrors: false,
+      keepDirty: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false
+    });
     
     console.log('Form reset complete. Current values:', form.getValues());
     
-    // Close manual entry form and dropdowns
+    // Force a re-render by triggering form state update
+    // Use requestAnimationFrame to ensure DOM updates after state changes
+    requestAnimationFrame(() => {
+      const verifyValues = form.getValues();
+      console.log('Form values after RAF (verified):', verifyValues);
+      
+      // If values didn't persist, force set them again
+      if (verifyValues.artist !== data.artistName) {
+        console.warn('⚠️ Artist value not persisted, force re-setting...');
+        form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true });
+        setSelectedArtist(data.artistName);
+      }
+      if (verifyValues.venue_name !== data.venueName) {
+        console.warn('⚠️ Venue value not persisted, force re-setting...');
+        form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true });
+      }
+      if (verifyValues.event_date !== data.eventDate) {
+        console.warn('⚠️ Event date value not persisted, force re-setting...');
+        form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true });
+      }
+    });
+    
+    // Close manual entry form and dropdowns AFTER reset
     setShowManualEntry(false);
     setIsDropdownActive(false);
     
-    // Verify values were set
+    // Verify values were set with multiple checks
     setTimeout(() => {
       const verifyValues = form.getValues();
       console.log('Form values after reset (verified):', verifyValues);
-      if (verifyValues.artist !== data.artistName) {
-        console.error('ERROR: Form reset did not work!');
+      
+      // If any critical values are missing, force set them
+      if (verifyValues.artist !== data.artistName || !verifyValues.artist) {
+        console.error('❌ ERROR: Artist value not persisted! Force re-setting...');
+        form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+        setSelectedArtist(data.artistName);
       }
-    }, 50);
+      if (verifyValues.venue_name !== data.venueName || !verifyValues.venue_name) {
+        console.error('❌ ERROR: Venue value not persisted! Force re-setting...');
+        form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+      }
+      if (verifyValues.event_date !== data.eventDate || !verifyValues.event_date) {
+        console.error('❌ ERROR: Event date value not persisted! Force re-setting...');
+        form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+      }
+      
+      // Trigger validation to ensure form is valid
+      form.trigger(['artist', 'venue_name', 'event_date']);
+    }, 100);
     
     toast({
       title: 'Event Saved',

@@ -629,10 +629,16 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
             source: set.source || 'database'
           }));
           
+          // Add database results to search results
           artistsWithRecentSets.push(...mappedDbResults);
           console.log(`✅ Added ${mappedDbResults.length} database results to search results`);
+          console.log(`   Results include: ${mappedDbResults.map(r => `${r.artistName} at ${r.venueName} (${r.source})`).join(', ')}`);
         } else {
           console.log(`⚠️ No database results found for: "${artistSearchTerm}"`);
+          console.log(`   This could mean:`);
+          console.log(`   1. No events exist for this artist in the database`);
+          console.log(`   2. The artist name doesn't match (case-sensitive partial match)`);
+          console.log(`   3. The event was just created and needs a moment to be searchable`);
         }
       } else {
         console.log('⚠️ Supabase admin not available for database search');
