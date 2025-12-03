@@ -427,12 +427,24 @@ router.post('/api/manual-entry/create', requireAuth, async (req: AuthenticatedRe
       return res.status(500).json({ success: false, error: 'Failed to create event' });
     }
 
-    console.log(`✓ Created manual event with ID: ${newSet.id}`);
+    console.log(`✅ Created manual event with ID: ${newSet.id}`);
+    console.log(`   Artist: ${artistName}`);
+    console.log(`   Venue: ${venueName}`);
+    console.log(`   Date: ${eventDate}`);
+    console.log(`   Source: manual_entry`);
 
     return res.json({
       success: true,
       setId: newSet.id,
-      message: 'Event created successfully'
+      message: 'Event created successfully',
+      event: {
+        artistName,
+        venueName,
+        eventName,
+        eventDate,
+        city,
+        country
+      }
     });
 
   } catch (error) {

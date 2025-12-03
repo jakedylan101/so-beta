@@ -291,18 +291,26 @@ export function LogSetForm() {
     city: string;
     country?: string;
   }) => {
-    // DON'T close the manual entry form - keep it open so user can complete the rest
-    // Just populate the main form fields
+    console.log('Manual entry complete, populating form with:', data);
+    
+    // Close the manual entry form and show the main form with populated fields
+    setShowManualEntry(false);
     setArtistSelected(true);
     setSelectedArtist(data.artistName);
     setIsDropdownActive(false); // Close any search dropdowns
     
-    // Populate all form fields
-    form.setValue('artist', data.artistName);
-    form.setValue('venue_name', data.venueName);
-    if (data.eventName) form.setValue('event_name', data.eventName);
-    form.setValue('event_date', data.eventDate);
-    // Note: city and country are not in the form schema, but event data is saved
+    // Populate all form fields immediately
+    form.setValue('artist', data.artistName, { shouldValidate: true });
+    form.setValue('venue_name', data.venueName, { shouldValidate: true });
+    if (data.eventName) {
+      form.setValue('event_name', data.eventName, { shouldValidate: true });
+    }
+    form.setValue('event_date', data.eventDate, { shouldValidate: true });
+    
+    // Force form to re-render with new values
+    form.trigger(['artist', 'venue_name', 'event_name', 'event_date']);
+    
+    console.log('Form values after setting:', form.getValues());
     
     toast({
       title: 'Event Saved',

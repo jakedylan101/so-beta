@@ -597,21 +597,25 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     }
 
     // Search database for manual events and logged sets
-    console.log(`Searching database for: ${artistSearchTerm}`);
+    console.log(`🔍 Searching database for: "${artistSearchTerm}"`);
     try {
       if (supabaseAdmin) {
         // Use case-insensitive search - Supabase ilike is case-insensitive by default
-        const { data: dbSets, error: dbError } = await supabaseAdmin
+        const searchQuery = supabaseAdmin
           .from('sets')
           .select('id, artist_name, location_name, event_name, event_date, city, country, source')
           .ilike('artist_name', `%${artistSearchTerm}%`)
           .order('event_date', { ascending: false })
           .limit(10);
+        
+        console.log('Database query:', searchQuery);
+        
+        const { data: dbSets, error: dbError } = await searchQuery;
 
         if (dbError) {
-          console.error('Database search error:', dbError);
+          console.error('❌ Database search error:', dbError);
         } else if (dbSets && dbSets.length > 0) {
-          console.log(`Found ${dbSets.length} results from database`);
+          console.log(`✅ Found ${dbSets.length} results from database:`, dbSets.map(s => `${s.artist_name} at ${s.location_name}`));
           
           const mappedDbResults = dbSets.map(set => ({
             id: `db-${set.id}`,
@@ -626,13 +630,13 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
           
           artistsWithRecentSets.push(...mappedDbResults);
         } else {
-          console.log('No database results found for:', artistSearchTerm);
+          console.log(`⚠️ No database results found for: "${artistSearchTerm}"`);
         }
       } else {
-        console.log('Supabase admin not available for database search');
+        console.log('⚠️ Supabase admin not available for database search');
       }
     } catch (error) {
-      console.error('Error searching database:', error);
+      console.error('❌ Error searching database:', error);
     }
 
     // Apply venue/event filtering if we have filter terms

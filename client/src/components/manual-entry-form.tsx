@@ -194,24 +194,22 @@ export function ManualEntryForm({
     country: string;
     placeId: string;
   }) => {
-    // Immediately close dropdown and update state
+    // Immediately close dropdown FIRST before any other updates
     setShowVenueDropdown(false);
-    setVenueOptions([]); // Clear options
+    setVenueOptions([]); // Clear options immediately
+    
+    // Then update validation state and form fields
     setVenueValidated(true);
     setValidatedVenueData({
       name: option.venueName,
       city: option.city,
       country: option.country
     });
+    
     // Update form fields
     setVenueName(option.venueName);
     if (option.city) setCity(option.city);
     if (option.country) setCountry(option.country);
-    
-    // Force a small delay to ensure state updates before any re-renders
-    setTimeout(() => {
-      setShowVenueDropdown(false);
-    }, 0);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -377,10 +375,7 @@ export function ManualEntryForm({
                   key={option.placeId || index}
                   type="button"
                   onMouseDown={(e) => {
-                    e.preventDefault(); // Prevent input blur - do this FIRST
-                    e.stopPropagation();
-                  }}
-                  onClick={(e) => {
+                    // Prevent input blur and immediately close dropdown
                     e.preventDefault();
                     e.stopPropagation();
                     handleVenueSelect(option);
