@@ -52,6 +52,7 @@ export function ManualEntryForm({
     placeId: string;
   }>>([]);
   const [showVenueDropdown, setShowVenueDropdown] = useState(false);
+  const [venueSelectionLocked, setVenueSelectionLocked] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   // Close dropdown when clicking outside
@@ -103,6 +104,12 @@ export function ManualEntryForm({
 
   // Validate venue when name changes
   useEffect(() => {
+    // CRITICAL: If user just selected a venue, don't run validation
+    // This prevents dropdown from reopening when we update venueName
+    if (venueSelectionLocked) {
+      return;
+    }
+    
     // If dropdown should be closed (user selected), don't reopen it
     if (!showVenueDropdown && venueValidated === true) {
       return;
@@ -184,7 +191,7 @@ export function ManualEntryForm({
     }, 500); // Debounce 500ms
 
     return () => clearTimeout(timer);
-  }, [venueName, city]);
+  }, [venueName, city, venueSelectionLocked, showVenueDropdown, venueValidated]);
 
   // Handle venue selection from dropdown
   const handleVenueSelect = (option: {
@@ -196,11 +203,13 @@ export function ManualEntryForm({
   }) => {
     console.log('Venue selected:', option.venueName);
     
-    // Close dropdown IMMEDIATELY using multiple methods
+    // LOCK venue selection to prevent validation useEffect from running
+    setVenueSelectionLocked(true);
+    
+    // Close dropdown IMMEDIATELY
     setShowVenueDropdown(false);
     setVenueOptions([]);
     
-    // Use a ref or state to prevent dropdown from reopening
     // Update validation state and form fields
     setVenueValidated(true);
     setValidatedVenueData({
@@ -209,20 +218,25 @@ export function ManualEntryForm({
       country: option.country
     });
     
-    // Update form fields
+    // Update form fields - this will trigger useEffect, but it's locked now
     setVenueName(option.venueName);
     if (option.city) setCity(option.city);
     if (option.country) setCountry(option.country);
     
-    // Force dropdown to stay closed
+    // Keep dropdown closed with multiple timeouts
     setTimeout(() => {
       setShowVenueDropdown(false);
       setVenueOptions([]);
-    }, 10);
+    }, 0);
     
     setTimeout(() => {
       setShowVenueDropdown(false);
-    }, 100);
+    }, 50);
+    
+    // Unlock after a delay to allow user to edit if needed
+    setTimeout(() => {
+      setVenueSelectionLocked(false);
+    }, 1000);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -391,7 +405,14 @@ export function ManualEntryForm({
                     e.stopPropagation();
                     // Handle selection in mousedown to fire before blur
                     handleVenueSelect(option);
-                    return false;
+                  }}
+                  onClick={(e) => {
+                    // Backup handler in case mousedown doesn't fire
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (showVenueDropdown) {
+                      handleVenueSelect(option);
+                    }
                   }}
                   onTouchStart={(e) => {
                     // Also handle touch events for mobile

@@ -300,31 +300,28 @@ export function LogSetForm() {
     setSelectedArtist(data.artistName);
     setArtistSelected(true);
     
-    // Use form.reset() to set ALL values at once - this is more reliable than setValue
-    form.reset({
-      ...currentFormValues,
+    // Build new form values object
+    const newFormValues: FormValues = {
       artist: data.artistName,
       venue_name: data.venueName,
       event_name: data.eventName || '',
       event_date: data.eventDate,
-      // Keep other fields as they were
       experience_date: currentFormValues.experience_date || '',
-      rating: currentFormValues.rating,
+      rating: currentFormValues.rating || undefined,
       friends_tags: currentFormValues.friends_tags || '',
       notes: currentFormValues.notes || '',
       media_urls: currentFormValues.media_urls || []
-    }, {
-      keepDefaultValues: false,
-      keepValues: false,
-      keepDirty: false,
-      keepErrors: false,
-      keepIsSubmitted: false,
-      keepTouched: false,
-      keepIsValid: false,
-      keepSubmitCount: false
-    });
+    };
     
-    console.log('Form reset with values:', form.getValues());
+    console.log('Resetting form with values:', newFormValues);
+    
+    // Use form.reset() to set ALL values at once - this is more reliable than setValue
+    form.reset(newFormValues);
+    
+    // Also ensure state is in sync
+    setSelectedArtist(data.artistName);
+    
+    console.log('Form reset complete. Current values:', form.getValues());
     
     // Close manual entry form and dropdowns
     setShowManualEntry(false);
