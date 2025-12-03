@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -52,6 +52,21 @@ export function ManualEntryForm({
     placeId: string;
   }>>([]);
   const [showVenueDropdown, setShowVenueDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowVenueDropdown(false);
+      }
+    }
+    
+    if (showVenueDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showVenueDropdown]);
 
   // Validate artist when name changes
   useEffect(() => {
@@ -94,6 +109,11 @@ export function ManualEntryForm({
       setShowVenueDropdown(false);
       setVenueOptions([]);
       return;
+    }
+    
+    // If user is typing, close dropdown until validation completes
+    if (showVenueDropdown) {
+      setShowVenueDropdown(false);
     }
 
     const timer = setTimeout(async () => {
@@ -174,7 +194,9 @@ export function ManualEntryForm({
     country: string;
     placeId: string;
   }) => {
+    // Immediately close dropdown and update state
     setShowVenueDropdown(false);
+    setVenueOptions([]); // Clear options
     setVenueValidated(true);
     setValidatedVenueData({
       name: option.venueName,
@@ -185,6 +207,11 @@ export function ManualEntryForm({
     setVenueName(option.venueName);
     if (option.city) setCity(option.city);
     if (option.country) setCountry(option.country);
+    
+    // Force a small delay to ensure state updates before any re-renders
+    setTimeout(() => {
+      setShowVenueDropdown(false);
+    }, 0);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -341,7 +368,7 @@ export function ManualEntryForm({
             </p>
           )}
           {showVenueDropdown && venueOptions.length > 0 && (
-            <div className="mt-2 border border-zinc-700 rounded-lg bg-zinc-800 max-h-48 overflow-auto">
+            <div ref={dropdownRef} className="mt-2 border border-zinc-700 rounded-lg bg-zinc-800 max-h-48 overflow-auto z-50">
               <p className="text-xs text-gray-400 px-3 py-2 border-b border-zinc-700">
                 Multiple venues found. Please select one:
               </p>
@@ -349,15 +376,16 @@ export function ManualEntryForm({
                 <button
                   key={option.placeId || index}
                   type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevent input blur - do this FIRST
+                    e.stopPropagation();
+                  }}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleVenueSelect(option);
                   }}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // Prevent input blur
-                  }}
-                  className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-b-0 transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-b-0 transition-colors cursor-pointer"
                 >
                   <div className="font-medium text-white">{option.venueName}</div>
                   <div className="text-xs text-gray-400">

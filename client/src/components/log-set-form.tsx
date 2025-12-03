@@ -291,9 +291,11 @@ export function LogSetForm() {
     city: string;
     country?: string;
   }) => {
-    setShowManualEntry(false);
+    // DON'T close the manual entry form - keep it open so user can complete the rest
+    // Just populate the main form fields
     setArtistSelected(true);
     setSelectedArtist(data.artistName);
+    setIsDropdownActive(false); // Close any search dropdowns
     
     // Populate all form fields
     form.setValue('artist', data.artistName);
@@ -303,8 +305,8 @@ export function LogSetForm() {
     // Note: city and country are not in the form schema, but event data is saved
     
     toast({
-      title: 'Event Added',
-      description: 'Event saved and ready to log. It will appear in search results.',
+      title: 'Event Saved',
+      description: 'Event saved successfully. Complete the form below to log your set.',
     });
   };
 

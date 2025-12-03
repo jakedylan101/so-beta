@@ -600,6 +600,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
     console.log(`Searching database for: ${artistSearchTerm}`);
     try {
       if (supabaseAdmin) {
+        // Use case-insensitive search - Supabase ilike is case-insensitive by default
         const { data: dbSets, error: dbError } = await supabaseAdmin
           .from('sets')
           .select('id, artist_name, location_name, event_name, event_date, city, country, source')
@@ -607,7 +608,9 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
           .order('event_date', { ascending: false })
           .limit(10);
 
-        if (!dbError && dbSets && dbSets.length > 0) {
+        if (dbError) {
+          console.error('Database search error:', dbError);
+        } else if (dbSets && dbSets.length > 0) {
           console.log(`Found ${dbSets.length} results from database`);
           
           const mappedDbResults = dbSets.map(set => ({
@@ -622,7 +625,11 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
           }));
           
           artistsWithRecentSets.push(...mappedDbResults);
+        } else {
+          console.log('No database results found for:', artistSearchTerm);
         }
+      } else {
+        console.log('Supabase admin not available for database search');
       }
     } catch (error) {
       console.error('Error searching database:', error);
