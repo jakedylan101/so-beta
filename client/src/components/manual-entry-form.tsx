@@ -376,15 +376,16 @@ export function ManualEntryForm({
                   key={option.placeId || index}
                   type="button"
                   onMouseDown={(e) => {
-                    // Prevent input blur
+                    // CRITICAL: Prevent input blur FIRST
                     e.preventDefault();
                     e.stopPropagation();
+                    // Also handle selection here to ensure it happens before blur
+                    handleVenueSelect(option);
                   }}
                   onClick={(e) => {
-                    // Handle selection on click (not mousedown) to ensure proper event handling
+                    // Prevent any additional click handling
                     e.preventDefault();
                     e.stopPropagation();
-                    handleVenueSelect(option);
                   }}
                   className="w-full text-left px-3 py-2 hover:bg-zinc-700 border-b border-zinc-700 last:border-b-0 transition-colors cursor-pointer"
                 >

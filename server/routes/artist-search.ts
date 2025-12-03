@@ -598,6 +598,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
 
     // Search database for manual events and logged sets
     console.log(`🔍 Searching database for: "${artistSearchTerm}"`);
+    console.log(`🔍 SupabaseAdmin available: ${!!supabaseAdmin}`);
     try {
       if (supabaseAdmin) {
         // Use case-insensitive search - Supabase ilike is case-insensitive by default

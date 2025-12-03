@@ -293,31 +293,67 @@ export function LogSetForm() {
   }) => {
     console.log('Manual entry complete, populating form with:', data);
     
-    // First, populate form fields BEFORE closing manual entry form
-    // This ensures values are set before component unmounts
-    form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true });
-    form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true });
+    // Update state FIRST - this ensures the form fields will show the values
+    setSelectedArtist(data.artistName);
+    setArtistSelected(true);
+    
+    // Then populate form fields - use shouldDirty to mark as changed
+    form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+    form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
     if (data.eventName) {
-      form.setValue('event_name', data.eventName, { shouldValidate: false, shouldDirty: true });
+      form.setValue('event_name', data.eventName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
     } else {
       form.setValue('event_name', '', { shouldValidate: false });
     }
-    form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true });
-    
-    // Update state to reflect form values
-    setSelectedArtist(data.artistName);
-    setArtistSelected(true);
+    form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
     
     // Close manual entry form and dropdowns AFTER setting values
     setShowManualEntry(false);
     setIsDropdownActive(false);
     
-    // Use setTimeout to ensure form re-renders with new values
-    setTimeout(() => {
-      // Trigger validation after form has re-rendered
-      form.trigger(['artist', 'venue_name', 'event_date']);
-      console.log('Form values after setting:', form.getValues());
-    }, 50);
+    // Force form to update - use multiple strategies to ensure values persist
+    // Strategy 1: Immediate check
+    const immediateValues = form.getValues();
+    console.log('Form values immediately after setting:', immediateValues);
+    
+    // Strategy 2: Use requestAnimationFrame for DOM update
+    requestAnimationFrame(() => {
+      const currentValues = form.getValues();
+      console.log('Form values after RAF:', currentValues);
+      
+      // If values didn't persist, force set them again with different options
+      if (currentValues.artist !== data.artistName || !currentValues.artist) {
+        console.warn('Artist value not persisted, force re-setting...');
+        form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+        setSelectedArtist(data.artistName); // Also update state
+      }
+      if (currentValues.venue_name !== data.venueName || !currentValues.venue_name) {
+        console.warn('Venue value not persisted, force re-setting...');
+        form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+      }
+      if (currentValues.event_date !== data.eventDate || !currentValues.event_date) {
+        console.warn('Event date value not persisted, force re-setting...');
+        form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+      }
+      
+      // Strategy 3: Use setTimeout as final fallback
+      setTimeout(() => {
+        const finalValues = form.getValues();
+        console.log('Form values after timeout:', finalValues);
+        if (finalValues.artist !== data.artistName) {
+          console.error('CRITICAL: Artist value still not set after all attempts!');
+          // Last resort: directly manipulate the form
+          form.reset({
+            ...form.getValues(),
+            artist: data.artistName,
+            venue_name: data.venueName,
+            event_date: data.eventDate,
+            event_name: data.eventName || ''
+          });
+        }
+        form.trigger(['artist', 'venue_name', 'event_date']);
+      }, 100);
+    });
     
     toast({
       title: 'Event Saved',
@@ -429,13 +465,14 @@ export function LogSetForm() {
                 <FormControl>
                   <Input
                     {...field}
-                    value={selectedArtist || field.value}
+                    value={artistSelected ? (selectedArtist || field.value) : field.value}
                     onChange={(e) => {
+                      const newValue = e.target.value;
                       field.onChange(e);
-                      setSelectedArtist(e.target.value);
+                      setSelectedArtist(newValue);
                       // Enable dropdown when typing, unless we've explicitly selected an artist
                       if (!artistSelected) {
-                        setIsDropdownActive(e.target.value.length >= 2);
+                        setIsDropdownActive(newValue.length >= 2);
                       }
                     }}
                     onFocus={() => {
@@ -488,6 +525,7 @@ export function LogSetForm() {
               <FormControl>
                 <Input
                   {...field}
+                  value={field.value || ''}
                   placeholder="Where was the show?"
                   className="w-full bg-zinc-900 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-white"
                 />
@@ -507,6 +545,7 @@ export function LogSetForm() {
               <FormControl>
                 <Input
                   {...field}
+                  value={field.value || ''}
                   placeholder="Tour or festival name"
                   className="w-full bg-zinc-900 border-none rounded-lg focus:ring-2 focus:ring-green-500 text-white"
                 />
