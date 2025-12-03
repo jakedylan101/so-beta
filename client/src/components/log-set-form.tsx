@@ -293,24 +293,31 @@ export function LogSetForm() {
   }) => {
     console.log('Manual entry complete, populating form with:', data);
     
-    // Close the manual entry form and show the main form with populated fields
-    setShowManualEntry(false);
-    setArtistSelected(true);
-    setSelectedArtist(data.artistName);
-    setIsDropdownActive(false); // Close any search dropdowns
-    
-    // Populate all form fields immediately
-    form.setValue('artist', data.artistName, { shouldValidate: true });
-    form.setValue('venue_name', data.venueName, { shouldValidate: true });
+    // First, populate form fields BEFORE closing manual entry form
+    // This ensures values are set before component unmounts
+    form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true });
+    form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true });
     if (data.eventName) {
-      form.setValue('event_name', data.eventName, { shouldValidate: true });
+      form.setValue('event_name', data.eventName, { shouldValidate: false, shouldDirty: true });
+    } else {
+      form.setValue('event_name', '', { shouldValidate: false });
     }
-    form.setValue('event_date', data.eventDate, { shouldValidate: true });
+    form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true });
     
-    // Force form to re-render with new values
-    form.trigger(['artist', 'venue_name', 'event_name', 'event_date']);
+    // Update state to reflect form values
+    setSelectedArtist(data.artistName);
+    setArtistSelected(true);
     
-    console.log('Form values after setting:', form.getValues());
+    // Close manual entry form and dropdowns AFTER setting values
+    setShowManualEntry(false);
+    setIsDropdownActive(false);
+    
+    // Use setTimeout to ensure form re-renders with new values
+    setTimeout(() => {
+      // Trigger validation after form has re-rendered
+      form.trigger(['artist', 'venue_name', 'event_date']);
+      console.log('Form values after setting:', form.getValues());
+    }, 50);
     
     toast({
       title: 'Event Saved',

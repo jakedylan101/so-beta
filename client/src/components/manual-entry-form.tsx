@@ -112,9 +112,7 @@ export function ManualEntryForm({
     }
     
     // If user is typing, close dropdown until validation completes
-    if (showVenueDropdown) {
-      setShowVenueDropdown(false);
-    }
+    // This prevents dropdown from staying open while typing
 
     const timer = setTimeout(async () => {
       setValidatingVenue(true);
@@ -194,11 +192,11 @@ export function ManualEntryForm({
     country: string;
     placeId: string;
   }) => {
-    // Immediately close dropdown FIRST before any other updates
-    setShowVenueDropdown(false);
-    setVenueOptions([]); // Clear options immediately
+    // Close dropdown IMMEDIATELY - use functional update to ensure it happens
+    setShowVenueDropdown(() => false);
+    setVenueOptions(() => []); // Clear options immediately
     
-    // Then update validation state and form fields
+    // Update validation state and form fields
     setVenueValidated(true);
     setValidatedVenueData({
       name: option.venueName,
@@ -210,6 +208,11 @@ export function ManualEntryForm({
     setVenueName(option.venueName);
     if (option.city) setCity(option.city);
     if (option.country) setCountry(option.country);
+    
+    // Force a re-render to ensure dropdown is hidden
+    setTimeout(() => {
+      setShowVenueDropdown(false);
+    }, 0);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -252,19 +255,17 @@ export function ManualEntryForm({
       }
 
       // Event saved successfully, now complete the form
-      onComplete({
-        artistName: validatedArtistName || artistName,
-        venueName: validatedVenueData?.name || venueName,
-        eventName: eventName || undefined,
-        eventDate: eventDate,
-        city: validatedVenueData?.city || city,
-        country: validatedVenueData?.country || country || undefined
-      });
-
-      toast({
-        title: 'Event Saved',
-        description: 'Event has been saved and is now searchable',
-      });
+      // Use setTimeout to ensure state updates complete before calling onComplete
+      setTimeout(() => {
+        onComplete({
+          artistName: validatedArtistName || artistName,
+          venueName: validatedVenueData?.name || venueName,
+          eventName: eventName || undefined,
+          eventDate: eventDate,
+          city: validatedVenueData?.city || city,
+          country: validatedVenueData?.country || country || undefined
+        });
+      }, 100);
     } catch (error) {
       console.error('Error saving event:', error);
       toast({
@@ -375,7 +376,12 @@ export function ManualEntryForm({
                   key={option.placeId || index}
                   type="button"
                   onMouseDown={(e) => {
-                    // Prevent input blur and immediately close dropdown
+                    // Prevent input blur
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    // Handle selection on click (not mousedown) to ensure proper event handling
                     e.preventDefault();
                     e.stopPropagation();
                     handleVenueSelect(option);

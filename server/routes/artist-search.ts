@@ -629,6 +629,7 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
           }));
           
           artistsWithRecentSets.push(...mappedDbResults);
+          console.log(`✅ Added ${mappedDbResults.length} database results to search results`);
         } else {
           console.log(`⚠️ No database results found for: "${artistSearchTerm}"`);
         }
@@ -637,7 +638,10 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       }
     } catch (error) {
       console.error('❌ Error searching database:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
     }
+    
+    console.log(`Total results before filtering: ${artistsWithRecentSets.length}`);
 
     // Apply venue/event filtering if we have filter terms
     let filteredResults = artistsWithRecentSets;
