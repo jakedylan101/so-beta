@@ -293,67 +293,51 @@ export function LogSetForm() {
   }) => {
     console.log('Manual entry complete, populating form with:', data);
     
-    // Update state FIRST - this ensures the form fields will show the values
+    // Get current form values to preserve any existing data
+    const currentFormValues = form.getValues();
+    
+    // Update state FIRST
     setSelectedArtist(data.artistName);
     setArtistSelected(true);
     
-    // Then populate form fields - use shouldDirty to mark as changed
-    form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-    form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-    if (data.eventName) {
-      form.setValue('event_name', data.eventName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-    } else {
-      form.setValue('event_name', '', { shouldValidate: false });
-    }
-    form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
+    // Use form.reset() to set ALL values at once - this is more reliable than setValue
+    form.reset({
+      ...currentFormValues,
+      artist: data.artistName,
+      venue_name: data.venueName,
+      event_name: data.eventName || '',
+      event_date: data.eventDate,
+      // Keep other fields as they were
+      experience_date: currentFormValues.experience_date || '',
+      rating: currentFormValues.rating,
+      friends_tags: currentFormValues.friends_tags || '',
+      notes: currentFormValues.notes || '',
+      media_urls: currentFormValues.media_urls || []
+    }, {
+      keepDefaultValues: false,
+      keepValues: false,
+      keepDirty: false,
+      keepErrors: false,
+      keepIsSubmitted: false,
+      keepTouched: false,
+      keepIsValid: false,
+      keepSubmitCount: false
+    });
     
-    // Close manual entry form and dropdowns AFTER setting values
+    console.log('Form reset with values:', form.getValues());
+    
+    // Close manual entry form and dropdowns
     setShowManualEntry(false);
     setIsDropdownActive(false);
     
-    // Force form to update - use multiple strategies to ensure values persist
-    // Strategy 1: Immediate check
-    const immediateValues = form.getValues();
-    console.log('Form values immediately after setting:', immediateValues);
-    
-    // Strategy 2: Use requestAnimationFrame for DOM update
-    requestAnimationFrame(() => {
-      const currentValues = form.getValues();
-      console.log('Form values after RAF:', currentValues);
-      
-      // If values didn't persist, force set them again with different options
-      if (currentValues.artist !== data.artistName || !currentValues.artist) {
-        console.warn('Artist value not persisted, force re-setting...');
-        form.setValue('artist', data.artistName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-        setSelectedArtist(data.artistName); // Also update state
+    // Verify values were set
+    setTimeout(() => {
+      const verifyValues = form.getValues();
+      console.log('Form values after reset (verified):', verifyValues);
+      if (verifyValues.artist !== data.artistName) {
+        console.error('ERROR: Form reset did not work!');
       }
-      if (currentValues.venue_name !== data.venueName || !currentValues.venue_name) {
-        console.warn('Venue value not persisted, force re-setting...');
-        form.setValue('venue_name', data.venueName, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-      }
-      if (currentValues.event_date !== data.eventDate || !currentValues.event_date) {
-        console.warn('Event date value not persisted, force re-setting...');
-        form.setValue('event_date', data.eventDate, { shouldValidate: false, shouldDirty: true, shouldTouch: true });
-      }
-      
-      // Strategy 3: Use setTimeout as final fallback
-      setTimeout(() => {
-        const finalValues = form.getValues();
-        console.log('Form values after timeout:', finalValues);
-        if (finalValues.artist !== data.artistName) {
-          console.error('CRITICAL: Artist value still not set after all attempts!');
-          // Last resort: directly manipulate the form
-          form.reset({
-            ...form.getValues(),
-            artist: data.artistName,
-            venue_name: data.venueName,
-            event_date: data.eventDate,
-            event_name: data.eventName || ''
-          });
-        }
-        form.trigger(['artist', 'venue_name', 'event_date']);
-      }, 100);
-    });
+    }, 50);
     
     toast({
       title: 'Event Saved',
