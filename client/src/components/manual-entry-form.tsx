@@ -52,8 +52,11 @@ export function ManualEntryForm({
     placeId: string;
   }>>([]);
   const [showVenueDropdown, setShowVenueDropdown] = useState(false);
-  const [venueSelectionLocked, setVenueSelectionLocked] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Use a ref for the venue selection lock to avoid triggering re-renders and effect re-runs
+  const venueSelectionLockedRef = useRef(false);
+  // Track the last successfully validated venue name to prevent re-validation
+  const lastValidatedVenueRef = useRef<string | null>(null);
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -99,21 +102,33 @@ export function ManualEntryForm({
   }, [artistName]);
 
   // Validate venue when name changes
-  // Note: Only depend on venueName and venueSelectionLocked to avoid duplicate API calls
-  // Other states (showVenueDropdown, venueValidated) are set INSIDE this effect and would cause loops
+  // Only depends on venueName - uses refs for lock to avoid re-render loops
   useEffect(() => {
     // Skip if selection is locked (user just selected from dropdown)
-    if (venueSelectionLocked) return;
+    if (venueSelectionLockedRef.current) {
+      return;
+    }
+    
+    // Skip if this venue was already validated (prevents re-validation after selection)
+    if (lastValidatedVenueRef.current === venueName) {
+      return;
+    }
     
     if (!venueName || venueName.length < 2) {
       setVenueValidated(null);
       setVenueValidationError(null);
       setShowVenueDropdown(false);
       setVenueOptions([]);
+      lastValidatedVenueRef.current = null;
       return;
     }
 
     const timer = setTimeout(async () => {
+      // Double-check lock inside the timeout (it might have been set during the debounce)
+      if (venueSelectionLockedRef.current) {
+        return;
+      }
+      
       setValidatingVenue(true);
       setVenueValidationError(null);
       try {
@@ -142,7 +157,7 @@ export function ManualEntryForm({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [venueName, venueSelectionLocked]);
+  }, [venueName]); // Only depend on venueName - refs don't need to be in deps
 
   // Handle venue selection from dropdown
   const handleVenueSelect = (option: {
@@ -154,10 +169,14 @@ export function ManualEntryForm({
   }) => {
     console.log('Venue selected:', option.venueName);
     
-    setVenueSelectionLocked(true);
+    // Lock to prevent re-validation during selection
+    venueSelectionLockedRef.current = true;
+    
+    // Close dropdown and clear options
     setShowVenueDropdown(false);
     setVenueOptions([]);
     
+    // Mark as validated and store the data
     setVenueValidated(true);
     setValidatedVenueData({
       name: option.venueName,
@@ -165,17 +184,20 @@ export function ManualEntryForm({
       country: option.country
     });
     
+    // Update venue name (this will trigger the effect, but the lock prevents API call)
     setVenueName(option.venueName);
+    
+    // Track this as the last validated venue to prevent re-validation
+    lastValidatedVenueRef.current = option.venueName;
+    
+    // Auto-fill city and country
     if (option.city) setCity(option.city);
     if (option.country) setCountry(option.country);
     
+    // Release lock after a short delay (gives React time to process state updates)
     setTimeout(() => {
-      setShowVenueDropdown(false);
-    }, 0);
-    
-    setTimeout(() => {
-      setVenueSelectionLocked(false);
-    }, 1000);
+      venueSelectionLockedRef.current = false;
+    }, 100);
   };
 
   const [isSaving, setIsSaving] = useState(false);
@@ -288,7 +310,9 @@ export function ManualEntryForm({
               onChange={(e) => {
                 setVenueName(e.target.value);
                 setVenueValidated(null);
-                setVenueSelectionLocked(false);
+                // Clear validation tracking when user types
+                lastValidatedVenueRef.current = null;
+                venueSelectionLockedRef.current = false;
               }}
               placeholder="Enter venue name"
               className={`bg-zinc-800 border-zinc-700 ${
