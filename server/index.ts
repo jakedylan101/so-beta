@@ -3,6 +3,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { authMiddleware } from "./middleware";
 import artistSearchRouter from "./routes/artist-search";
 import trendingSetsRouter from "./routes/trending-sets";
+import manualEntryRouter from "./routes/manual-entry";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
@@ -152,6 +153,9 @@ app.use(artistSearchRouter);
 
 // Register trending sets router
 app.use(trendingSetsRouter);
+
+// Register manual entry router
+app.use(manualEntryRouter);
 
 // Register the main routes file which contains API endpoints for sets
 registerRoutes(app);

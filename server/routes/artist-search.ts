@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import fetch from 'node-fetch';
+import { supabaseAdmin } from '../supabase';
 
 const router = Router();
 
@@ -573,6 +574,47 @@ router.get("/api/artist/search", async (req: Request, res: Response) => {
       artistsWithRecentSets.push(...mappedSoundCloudResults);
     } catch (error) {
       console.error('Error fetching from SoundCloud:', error);
+    }
+
+    // Search database for manual events and logged sets
+    console.log(`🔍 Searching database for: "${query}"`);
+    console.log(`🔍 SupabaseAdmin available: ${!!supabaseAdmin}`);
+    try {
+      if (supabaseAdmin) {
+        // Use case-insensitive search
+        const { data: dbSets, error: dbError } = await supabaseAdmin
+          .from('sets')
+          .select('id, artist_name, location_name, event_name, event_date, source')
+          .ilike('artist_name', `%${query}%`)
+          .order('event_date', { ascending: false })
+          .limit(20);
+
+        if (dbError) {
+          console.error('❌ Database search error:', dbError);
+        } else if (dbSets && dbSets.length > 0) {
+          console.log(`✅ Found ${dbSets.length} results from database`);
+          
+          const mappedDbResults = dbSets.map(set => ({
+            id: `db-${set.id}`,
+            artistName: set.artist_name,
+            venueName: set.location_name || 'Unknown Venue',
+            eventDate: set.event_date || '',
+            eventName: set.event_name || '',
+            city: '',
+            country: '',
+            source: set.source || 'database'
+          }));
+          
+          artistsWithRecentSets.push(...mappedDbResults);
+          console.log(`✅ Added ${mappedDbResults.length} database results to search results`);
+        } else {
+          console.log(`⚠️ No database results found for: "${query}"`);
+        }
+      } else {
+        console.log('⚠️ Supabase admin not available for database search');
+      }
+    } catch (error) {
+      console.error('❌ Error searching database:', error);
     }
 
     // Deduplicate results
