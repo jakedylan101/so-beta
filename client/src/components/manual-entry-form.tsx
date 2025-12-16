@@ -99,9 +99,11 @@ export function ManualEntryForm({
   }, [artistName]);
 
   // Validate venue when name changes
+  // Note: Only depend on venueName and venueSelectionLocked to avoid duplicate API calls
+  // Other states (showVenueDropdown, venueValidated) are set INSIDE this effect and would cause loops
   useEffect(() => {
+    // Skip if selection is locked (user just selected from dropdown)
     if (venueSelectionLocked) return;
-    if (!showVenueDropdown && venueValidated === true) return;
     
     if (!venueName || venueName.length < 2) {
       setVenueValidated(null);
@@ -140,7 +142,7 @@ export function ManualEntryForm({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [venueName, venueSelectionLocked, showVenueDropdown, venueValidated]);
+  }, [venueName, venueSelectionLocked]);
 
   // Handle venue selection from dropdown
   const handleVenueSelect = (option: {
