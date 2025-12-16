@@ -291,27 +291,37 @@ export function LogSetForm() {
     city: string;
     country?: string;
   }) => {
-    console.log('Manual entry complete, populating form with:', data);
+    console.log('✅ Manual entry complete, populating form with:', data);
     
-    // Update state
+    // Update React state FIRST
     setSelectedArtist(data.artistName);
     setArtistSelected(true);
-    
-    // Populate form fields
-    form.setValue('artist', data.artistName);
-    form.setValue('venue_name', data.venueName);
-    if (data.eventName) form.setValue('event_name', data.eventName);
-    form.setValue('event_date', data.eventDate);
-    form.setValue('experience_date', data.eventDate); // Default experience_date to event_date
-    
-    // Close manual entry form
     setShowManualEntry(false);
     setIsDropdownActive(false);
     
-    toast({
-      title: 'Event Saved',
-      description: 'Event saved successfully. Complete the form below to log your set.',
-    });
+    // Use setTimeout to ensure state updates are processed before form updates
+    setTimeout(() => {
+      // Populate form fields with shouldValidate to trigger re-render
+      form.setValue('artist', data.artistName, { shouldValidate: true, shouldDirty: true });
+      form.setValue('venue_name', data.venueName, { shouldValidate: true, shouldDirty: true });
+      if (data.eventName) {
+        form.setValue('event_name', data.eventName, { shouldValidate: true, shouldDirty: true });
+      }
+      form.setValue('event_date', data.eventDate, { shouldValidate: true, shouldDirty: true });
+      form.setValue('experience_date', data.eventDate, { shouldValidate: true, shouldDirty: true });
+      
+      console.log('✅ Form values set:', {
+        artist: form.getValues('artist'),
+        venue_name: form.getValues('venue_name'),
+        event_date: form.getValues('event_date'),
+        experience_date: form.getValues('experience_date')
+      });
+      
+      toast({
+        title: 'Event Saved',
+        description: 'Event saved to database. Complete the form below to log your set.',
+      });
+    }, 50);
   };
 
   // Handle manual entry cancel

@@ -216,10 +216,25 @@ export function ManualEntryForm({
 
     setIsSaving(true);
     console.log('📤 Starting manual event save...');
+    console.log('📤 Form data:', { artistName, venueName, eventName, eventDate, city, country });
 
     try {
-      // Save event to database
-      console.log('📤 Calling fetchWithAuth for /api/manual-entry/create');
+      // Check authentication FIRST before making the request
+      const { supabase } = await import('@/lib/supabase');
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (!sessionData?.session?.access_token) {
+        console.error('❌ User not authenticated - cannot save event');
+        toast({
+          title: 'Authentication Required',
+          description: 'Please log in to save events.',
+          variant: 'destructive'
+        });
+        setIsSaving(false);
+        return; // Exit early WITHOUT calling onComplete
+      }
+      
+      console.log('📤 User authenticated, calling /api/manual-entry/create');
       const response = await fetchWithAuth('/api/manual-entry/create', {
         method: 'POST',
         headers: {
