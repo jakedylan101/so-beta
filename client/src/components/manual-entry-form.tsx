@@ -215,9 +215,11 @@ export function ManualEntryForm({
     }
 
     setIsSaving(true);
+    console.log('📤 Starting manual event save...');
 
     try {
       // Save event to database
+      console.log('📤 Calling fetchWithAuth for /api/manual-entry/create');
       const response = await fetchWithAuth('/api/manual-entry/create', {
         method: 'POST',
         headers: {
@@ -233,13 +235,16 @@ export function ManualEntryForm({
         })
       });
 
+      console.log('📤 Response received:', response.status, response.statusText);
       const data = await response.json();
+      console.log('📤 Response data:', data);
 
       if (!response.ok || !data.success) {
+        console.error('❌ API returned error:', data);
         throw new Error(data.error || 'Failed to save event');
       }
 
-      console.log('✅ Event saved successfully:', data);
+      console.log('✅ Event saved successfully to database:', data);
 
       // Complete the form
       setTimeout(() => {
@@ -253,13 +258,16 @@ export function ManualEntryForm({
         });
       }, 100);
     } catch (error) {
-      console.error('Error saving event:', error);
+      console.error('❌ Error saving event (form will stay open):', error);
+      console.error('❌ Error type:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('❌ Error message:', error instanceof Error ? error.message : String(error));
       toast({
         title: 'Error Saving Event',
         description: error instanceof Error ? error.message : 'Failed to save event. Please try again.',
         variant: 'destructive'
       });
       // Do NOT call onComplete() on error - keep form open so user can retry or cancel
+      console.log('❌ Form staying open for retry (onComplete NOT called)');
     } finally {
       setIsSaving(false);
     }
