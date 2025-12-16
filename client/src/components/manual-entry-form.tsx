@@ -232,18 +232,10 @@ export function ManualEntryForm({
       console.error('Error saving event:', error);
       toast({
         title: 'Error Saving Event',
-        description: error instanceof Error ? error.message : 'Failed to save event.',
+        description: error instanceof Error ? error.message : 'Failed to save event. Please try again.',
         variant: 'destructive'
       });
-      // Still complete the form even if save fails
-      onComplete({
-        artistName: validatedArtistName || artistName,
-        venueName: validatedVenueData?.name || venueName,
-        eventName: eventName || undefined,
-        eventDate: eventDate,
-        city: validatedVenueData?.city || city,
-        country: validatedVenueData?.country || country || undefined
-      });
+      // Do NOT call onComplete() on error - keep form open so user can retry or cancel
     } finally {
       setIsSaving(false);
     }
